@@ -1,5 +1,5 @@
 [root]
-name = "Gameboy-Crust"
+name = "gameboy-crust"
 version = "0.1.0"
 dependencies = [
  "minifb 0.10.3 (registry+https://github.com/rust-lang/crates.io-index)",

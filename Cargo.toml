@@ -1,5 +1,5 @@
 [package]
-name = "Gameboy-Crust"
+name = "gameboy-crust"
 version = "0.1.0"
 authors = ["mp3259 <mp3259@users.noreply.github.com>"]
 
