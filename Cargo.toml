@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["mp3259 <mp3259@users.noreply.github.com>"]
 
 [dependencies]
+minifb = "0.10.3"
