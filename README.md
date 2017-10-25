@@ -7,7 +7,7 @@ The name is derived from the idea that `Color` + `Rust` = `Crust`. It's not the 
 ## Features
 A checklist of all the planned components and features: 
 - [ ] CPU *(SHARP LR35902)*
-- [ ] Memory Map
+- [X] Memory Map
 - [ ] Cartridge Memory Bank Controllers
 - [ ] Cartridge Battery backed SRAM
 - [ ] Frequency/Timing

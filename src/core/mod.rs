@@ -8,3 +8,5 @@ pub mod vram;
 pub mod wram;
 pub mod oam;
 pub mod hram;
+
+pub mod mbc;

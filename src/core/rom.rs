@@ -3,9 +3,11 @@ use std::vec::Vec;
 use std::fs::File;
 use std::io::Read;
 use std::fmt;
+use core::mbc::*;
 
 pub struct Rom {
-	bytes: Vec<u8>
+	bytes: Vec<u8>,
+	controller: Box<MemoryController>
 }
 
 impl Rom {
@@ -15,18 +17,26 @@ impl Rom {
 		let mut buffer = Vec::new();
 		let mut file = File::open(path).expect("Invalid ROM path");
 		file.read_to_end(&mut buffer).expect("Unable to read ROM");
+		let cart_type = buffer[0x147];
 		
 		Rom {
+			controller: match cart_type {
+				0x00 => Box::new(mbc0::MBC0),
+				0x01 ... 0x03 => Box::new(mbc1::MBC1::new()),
+				0x05 ... 0x06 => Box::new(mbc2::MBC2::new()),
+				0x0F ... 0x13 => Box::new(mbc3::MBC3::new()),
+				_ => panic!("Unsupported Cartridge Type: ${:02X}", cart_type)
+			},
 			bytes: buffer
 		}
 	}
 
 	pub fn read(&self, address: u16) -> u8 {
-		self.bytes[address as usize]
+		self.controller.read(&self.bytes, address)
 	}
 
 	pub fn write(&self, address: u16, data: u8) {
-		//TODO: Memory bank controller selection
+		self.controller.write(address, data);
 	}
 
 	pub fn size(&self) -> usize {

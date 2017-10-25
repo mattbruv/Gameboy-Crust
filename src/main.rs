@@ -15,12 +15,4 @@ fn main() {
 	let test = gbc.interconnect.read(0xC001);
 	println!("${:02X}", test);
 
-	let test = gbc.interconnect.read(0xE001);
-	println!("${:02X}", test);
-
-	let test = gbc.interconnect.write(0xC001, 0xEE);
-
-	let test = gbc.interconnect.read(0xE001);
-	println!("${:02X}", test);
-
 }
