@@ -21,8 +21,8 @@ impl Rom {
 		}
 	}
 
-	pub fn read(&self, address: usize) -> u8 {
-		self.bytes[address]
+	pub fn read(&self, address: u16) -> u8 {
+		self.bytes[address as usize]
 	}
 
 	pub fn size(&self) -> usize {
@@ -91,7 +91,7 @@ Cartridge Type: ${:02X} - {}
 				_ => ""
 			},
 			self.rom_size(),
-			match (self.rom_size()) {				
+			match self.rom_size() {				
 				0x00 => "32KByte (no ROM banking)",
 				0x01 => "64KByte (4 banks)",
 				0x02 => "128KByte (8 banks)",
