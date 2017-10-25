@@ -25,6 +25,10 @@ impl Rom {
 		self.bytes[address as usize]
 	}
 
+	pub fn write(&self, address: u16, data: u8) {
+		//TODO: Memory bank controller selection
+	}
+
 	pub fn size(&self) -> usize {
 		self.bytes.len()
 	}

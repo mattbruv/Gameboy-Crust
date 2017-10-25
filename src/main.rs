@@ -10,7 +10,17 @@ fn main() {
 
 	let rom = rom::Rom::load(rom_path);
 	println!("{}", rom);
-	let gbc = gameboy::GameBoy::new(rom);
-	gbc.interconnect.test();
+	let mut gbc = gameboy::GameBoy::new(rom);
+
+	let test = gbc.interconnect.read(0xC001);
+	println!("${:02X}", test);
+
+	let test = gbc.interconnect.read(0xE001);
+	println!("${:02X}", test);
+
+	let test = gbc.interconnect.write(0xC001, 0xEE);
+
+	let test = gbc.interconnect.read(0xE001);
+	println!("${:02X}", test);
 
 }
