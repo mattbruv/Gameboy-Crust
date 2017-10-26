@@ -12,7 +12,6 @@ fn main() {
 	println!("{}", rom);
 	let mut gbc = gameboy::GameBoy::new(rom);
 
-	let test = gbc.interconnect.read(0xC001);
-	println!("${:02X}", test);
+	gbc.cpu.debug();
 
 }

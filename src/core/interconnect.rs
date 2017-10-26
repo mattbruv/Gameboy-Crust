@@ -45,7 +45,11 @@ impl Interconnect {
 			VRAM_START ... VRAM_END => self.vram.write(address - VRAM_START, data),
 			ERAM_START ... ERAM_END => panic!("Write to ERAM not implemented"),
 			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
-			ECHO_START ... ECHO_END => self.wram.write(address - ECHO_START, data),
+			ECHO_START ... ECHO_END => {
+				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.
+				// self.wram.write(address - ECHO_START, data)
+				panic!("Attempt to write to ECHO RAM");
+			},
 			OAM_START  ... OAM_END  => self.oam.write(address - OAM_START, data),
 			HRAM_START ... HRAM_END => self.hram.write(address - HRAM_START, data),
 			_ => panic!("Invalid Write")
