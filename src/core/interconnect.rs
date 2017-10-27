@@ -25,7 +25,7 @@ impl Interconnect {
 	}
 
 	pub fn read(&self, address: u16) -> u8 {
-		println!("READ FROM ${:4X}", address);
+		//println!("READ FROM ${:4X}", address);
 		match address {
 			ROM_START  ... ROM_END  => self.rom.read(address),
 			VRAM_START ... VRAM_END => self.vram.read(address - VRAM_START),
@@ -39,7 +39,7 @@ impl Interconnect {
 	}
 
 	pub fn write(&mut self, address: u16, data: u8) {
-		println!("WRITE ${:2X} TO ${:4X}", data, address);
+		//println!("WRITE ${:2X} TO ${:4X}", data, address);
 		match address {
 			ROM_START  ... ROM_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => self.vram.write(address - VRAM_START, data),
