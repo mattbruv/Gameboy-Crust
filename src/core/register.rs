@@ -27,7 +27,7 @@ pub struct Registers {
 impl Registers {
 
 	pub fn new() -> Registers {
-		// Registers are set to specific values after GB BIOS runs
+		// Registers are set to these specific values after GB BIOS runs
 		Registers {
 			a: 0x01,
 			f: 0xB0,
@@ -76,6 +76,16 @@ impl Registers {
 	pub fn set_hl(&mut self, value: u16) {
 		self.h = high!(value);
 		self.l = low!(value);
+	}
+
+	pub fn hli(&mut self) {
+		let new = self.hl().wrapping_add(1);
+		self.set_hl(new);
+	}
+
+	pub fn hld(&mut self) {
+		let new = self.hl().wrapping_sub(1);
+		self.set_hl(new);
 	}
 
 	// Sets the state of a flag in the F register based on a condition

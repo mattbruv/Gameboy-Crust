@@ -11,7 +11,10 @@ fn main() {
 	let rom = rom::Rom::load(rom_path);
 	println!("{}", rom);
 	let mut gbc = gameboy::GameBoy::new(rom);
-	gbc.cpu.step(&mut gbc.interconnect);
+
+	for i in 1..10 {
+		gbc.cpu.step(&mut gbc.interconnect);
+	}
 
 	gbc.cpu.debug();
 
