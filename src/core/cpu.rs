@@ -1,6 +1,13 @@
 use core::register::*;
 use core::interconnect::*;
 
+enum Jump {
+	NotZero  = 0b00,
+	Zero     = 0b01,
+	NotCarry = 0b10,
+	Carry    = 0b11,
+}
+
 pub struct CPU {
 	regs: Registers
 }
@@ -45,6 +52,8 @@ impl CPU {
 		combine!(high, low)
 	}
 
+	/* 8-bit operations */
+
 	fn add_u8(&mut self, n: u8, use_carry: bool) {
 		let a = self.regs.a;
 		let c = (use_carry && self.regs.is_flag_set(Flag::Carry)) as u8;
@@ -70,6 +79,108 @@ impl CPU {
 		self.regs.set_flag(Flag::Zero, (result == 0));
 		self.regs.a = result;
 	}
+
+	fn and_u8(&mut self, n: u8) {
+		let result = self.regs.a & n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, true);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn or_u8(&mut self, n: u8) {
+		let result = self.regs.a | n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn xor_u8(&mut self, n: u8) {
+		let result = self.regs.a ^ n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	// Compare A with n. This is basically a A - n subtraction but the results are thrown away
+	fn cp_u8(&mut self, n: u8) {
+		let a = self.regs.a;
+		self.sub_u8(n, false);
+		self.regs.a = a;
+	}
+
+	fn inc_u8(&mut self, n: u8) -> u8 {
+		let result = n.wrapping_add(1);
+		let half_carry = (n & 0xF) + 1 > 0xF;
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		result
+	}
+
+	fn dec_u8(&mut self, n: u8) -> u8 {
+		let result = n.wrapping_sub(1);
+		let half_carry = ((n & 0xF) as i16) - 1 < 0;
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, true);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		result
+	}
+
+	
+	/* 16-bit operations */
+
+	fn add_hl(&mut self, n: u16) {
+		let hl = self.regs.hl();
+		let (result, carry) = hl.overflowing_add(n);
+		let half_carry = ((hl & 0xFFF) + (n & 0xFFF)) & 0x1000 != 0;
+		self.regs.set_flag(Flag::Carry, carry);
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_hl(result);
+	}
+
+	/* Jump Instructions */
+
+	fn jump(&mut self, source: u16) {
+		self.regs.pc = source;
+	}
+
+	// Jumps relative to a signed i8
+	fn jump_rel(&mut self, source: i8) {
+		let result = (self.regs.pc as i16).wrapping_add(source as i16);
+		self.jump(result as u16);
+	}
+
+	// Determines whether or not to jump based on passed argument
+	// returns number of cycles (varied)
+	fn jump_if(&mut self, source: u16, condition: Jump) -> usize {
+		match condition {
+			Jump::NotZero => { // JP NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
+			},
+			Jump::Zero => { // JP Z
+				if self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
+			},
+			Jump::NotCarry => { // JP NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
+			},
+			Jump::Carry => { // JP C
+				if self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
+			}, _ => unreachable!()
+		}
+	}
+
+	fn jump_rel_if(&mut self, source: i8, condition: Jump) -> usize {
+		let result = (self.regs.pc as i16).wrapping_add(source as i16);
+		self.jump_if(result as u16, condition) - 1
+	}
+		
 
 	// Perform one step of the fetch-decode-execute cycle 
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
@@ -262,21 +373,121 @@ impl CPU {
 			0xDE => { let n = self.next_byte(memory); self.sub_u8(n, true); 2 },
 			// SBC A, (HL)
 			0x9E => { let hl = memory.read(self.regs.hl()); self.sub_u8(hl, true); 2 },
+			// AND A, r
+			0xA7 => { let r = self.regs.a; self.and_u8(r); 1 },
+			0xA0 => { let r = self.regs.b; self.and_u8(r); 1 },
+			0xA1 => { let r = self.regs.c; self.and_u8(r); 1 },
+			0xA2 => { let r = self.regs.d; self.and_u8(r); 1 },
+			0xA3 => { let r = self.regs.e; self.and_u8(r); 1 },
+			0xA4 => { let r = self.regs.h; self.and_u8(r); 1 },
+			0xA5 => { let r = self.regs.l; self.and_u8(r); 1 },
+			// AND A, n
+			0xE6 => { let n = self.next_byte(memory); self.and_u8(n); 2 },
+			// AND A, (HL)
+			0xA6 => { let hl = memory.read(self.regs.hl()); self.and_u8(hl); 2 },
+			// OR A, r
+			0xB7 => { let r = self.regs.a; self.or_u8(r); 1 },
+			0xB0 => { let r = self.regs.b; self.or_u8(r); 1 },
+			0xB1 => { let r = self.regs.c; self.or_u8(r); 1 },
+			0xB2 => { let r = self.regs.d; self.or_u8(r); 1 },
+			0xB3 => { let r = self.regs.e; self.or_u8(r); 1 },
+			0xB4 => { let r = self.regs.h; self.or_u8(r); 1 },
+			0xB5 => { let r = self.regs.l; self.or_u8(r); 1 },
+			// OR A, n
+			0xF6 => { let n = self.next_byte(memory); self.or_u8(n); 2 },
+			// OR A, (HL)
+			0xB6 => { let hl = memory.read(self.regs.hl()); self.or_u8(hl); 2 },
+			// XOR A, r
+			0xAF => { let r = self.regs.a; self.xor_u8(r); 1 },
+			0xA8 => { let r = self.regs.b; self.xor_u8(r); 1 },
+			0xA9 => { let r = self.regs.c; self.xor_u8(r); 1 },
+			0xAA => { let r = self.regs.d; self.xor_u8(r); 1 },
+			0xAB => { let r = self.regs.e; self.xor_u8(r); 1 },
+			0xAC => { let r = self.regs.h; self.xor_u8(r); 1 },
+			0xAD => { let r = self.regs.l; self.xor_u8(r); 1 },
+			// XOR A, n
+			0xEE => { let n = self.next_byte(memory); self.xor_u8(n); 2 },
+			// XOR A, (HL)
+			0xAE => { let hl = memory.read(self.regs.hl()); self.xor_u8(hl); 2 },
+			// CP A, r
+			0xBF => { let r = self.regs.a; self.cp_u8(r); 1 },
+			0xB8 => { let r = self.regs.b; self.cp_u8(r); 1 },
+			0xB9 => { let r = self.regs.c; self.cp_u8(r); 1 },
+			0xBA => { let r = self.regs.d; self.cp_u8(r); 1 },
+			0xBB => { let r = self.regs.e; self.cp_u8(r); 1 },
+			0xBC => { let r = self.regs.h; self.cp_u8(r); 1 },
+			0xBD => { let r = self.regs.l; self.cp_u8(r); 1 },
+			// CP A, n
+			0xFE => { let n = self.next_byte(memory); self.cp_u8(n); 2 },
+			// CP A, (HL)
+			0xBE => { let hl = memory.read(self.regs.hl()); self.cp_u8(hl); 2 },
+			// INC r
+			0x3C => { let r = self.regs.a; self.regs.a = self.inc_u8(r); 1 },
+			0x04 => { let r = self.regs.b; self.regs.b = self.inc_u8(r); 1 },
+			0x0C => { let r = self.regs.c; self.regs.c = self.inc_u8(r); 1 },
+			0x14 => { let r = self.regs.d; self.regs.d = self.inc_u8(r); 1 },
+			0x1C => { let r = self.regs.e; self.regs.e = self.inc_u8(r); 1 },
+			0x24 => { let r = self.regs.h; self.regs.h = self.inc_u8(r); 1 },
+			0x2C => { let r = self.regs.l; self.regs.l = self.inc_u8(r); 1 },
+			// INC (HL)
+			0x34 => { let n = memory.read(self.regs.hl()); memory.write(self.regs.hl(), self.inc_u8(n)); 3 },
+			// DEC r
+			0x3D => { let r = self.regs.a; self.regs.a = self.dec_u8(r); 1 },
+			0x05 => { let r = self.regs.b; self.regs.b = self.dec_u8(r); 1 },
+			0x0D => { let r = self.regs.c; self.regs.c = self.dec_u8(r); 1 },
+			0x15 => { let r = self.regs.d; self.regs.d = self.dec_u8(r); 1 },
+			0x1D => { let r = self.regs.e; self.regs.e = self.dec_u8(r); 1 },
+			0x25 => { let r = self.regs.h; self.regs.h = self.dec_u8(r); 1 },
+			0x2D => { let r = self.regs.l; self.regs.l = self.dec_u8(r); 1 },
+			// DEC (HL)
+			0x35 => { let n = memory.read(self.regs.hl()); memory.write(self.regs.hl(), self.dec_u8(n)); 3 },
+			// ADD HL, rr
+			0x09 => { let rr = self.regs.bc(); self.add_hl(rr); 2 }, 
+			0x19 => { let rr = self.regs.de(); self.add_hl(rr); 2 }, 
+			0x29 => { let rr = self.regs.hl(); self.add_hl(rr); 2 }, 
+			0x39 => { let rr = self.regs.sp; self.add_hl(rr); 2 },
+			// ADD SP, e
+			0xE8 => { unimplemented!(); }, 
+			// INC ss (no flags changed here)
+			0x03 => { let rr = self.regs.bc().wrapping_add(1); self.regs.set_bc(rr); 2 }, 
+			0x13 => { let rr = self.regs.de().wrapping_add(1); self.regs.set_de(rr); 2 }, 
+			0x23 => { let rr = self.regs.hl().wrapping_add(1); self.regs.set_hl(rr); 2 }, 
+			0x33 => { let rr = self.regs.sp.wrapping_add(1); self.regs.sp = rr; 2 },
+			// DEC ss (no flags changed here)
+			0x0B => { let rr = self.regs.bc().wrapping_sub(1); self.regs.set_bc(rr); 2 }, 
+			0x1B => { let rr = self.regs.de().wrapping_sub(1); self.regs.set_de(rr); 2 }, 
+			0x2B => { let rr = self.regs.hl().wrapping_sub(1); self.regs.set_hl(rr); 2 }, 
+			0x3B => { let rr = self.regs.sp.wrapping_sub(1); self.regs.sp = rr; 2 },
 
+			// JP nn
+			0xC3 => { let nn = self.next_pointer(memory); self.jump(nn); 4 },
+			// JP cc, nn
+			0xC2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::NotZero) },
+			0xCA => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::Zero) },
+			0xD2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::NotCarry) },
+			0xDA => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::Carry) },
+			
+			// JR e
+			0x18 => { let e = self.next_byte(memory) as i8; self.jump_rel(e); 3 },
+			// JR cc, e
+			0x20 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::NotZero) },
+			0x28 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::Zero) },
+			0x30 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::NotCarry) },
+			0x38 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::Carry) },
+			// JP (HL)
+			0xE9 => { let hl = self.regs.hl(); self.jump(hl); 1 },
 
-
-
-			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 }
+			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
 			_ => panic!("Unknown Opcode: ${:02X} | {}", opcode, opcode)
 		}
 	}
 
 	pub fn debug(&mut self) {
-		self.regs.a = 0x3b;
+		self.regs.a = 0x3c;
 		self.regs.f = 0x00;
-		self.regs.set_flag(Flag::Carry, true);
+
 		println!("{}", self.regs);
-		self.sub_u8(0x45 as u8, true);
+
 		println!("{}", self.regs);
 	}
 
