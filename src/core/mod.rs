@@ -3,6 +3,7 @@ mod helper;
 
 pub mod gameboy;
 pub mod interconnect;
+pub mod interrupt;
 pub mod memory_map;
 pub mod register;
 pub mod rom;

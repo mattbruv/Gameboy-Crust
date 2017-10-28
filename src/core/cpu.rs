@@ -1,11 +1,23 @@
 use core::register::*;
 use core::interconnect::*;
 
-enum Jump {
+enum Condition {
 	NotZero  = 0b00,
 	Zero     = 0b01,
 	NotCarry = 0b10,
 	Carry    = 0b11,
+}
+
+// Fixed addresses for RST and interrupt calls
+enum RstVector {
+	rst1 = 0x00,
+	rst2 = 0x08,
+	rst3 = 0x10,
+	rst4 = 0x18,
+	rst5 = 0x20,
+	rst6 = 0x28,
+	rst7 = 0x30,
+	rst8 = 0x38,
 }
 
 pub struct CPU {
@@ -17,7 +29,7 @@ impl CPU {
 	// Initialize CPU state
 	pub fn new() -> CPU {
 		CPU {
-			regs: Registers::new()
+			regs: Registers::new(),
 		}
 	}
 
@@ -37,18 +49,18 @@ impl CPU {
 
 	// Pushes 16 bit data onto the stack
 	fn push(&mut self, memory: &mut Interconnect, data: u16) {
-		self.regs.sp.wrapping_sub(1);
+		self.regs.sp = self.regs.sp.wrapping_sub(1);
 		memory.write(self.regs.sp, high!(data));
-		self.regs.sp.wrapping_sub(1);
+		self.regs.sp = self.regs.sp.wrapping_sub(1);
 		memory.write(self.regs.sp, low!(data));
 	}
 
 	// Pops highest 16 bits from stack
 	fn pop(&mut self, memory: &mut Interconnect) -> u16 {
 		let low = memory.read(self.regs.sp);
-		self.regs.sp.wrapping_add(1);
+		self.regs.sp = self.regs.sp.wrapping_add(1);
 		let high = memory.read(self.regs.sp);
-		self.regs.sp.wrapping_add(1);
+		self.regs.sp = self.regs.sp.wrapping_add(1);
 		combine!(high, low)
 	}
 
@@ -159,35 +171,88 @@ impl CPU {
 
 	// Determines whether or not to jump based on passed argument
 	// returns number of cycles (varied)
-	fn jump_if(&mut self, source: u16, condition: Jump) -> usize {
+	fn jump_if(&mut self, source: u16, condition: Condition) -> usize {
 		match condition {
-			Jump::NotZero => { // JP NZ
+			Condition::NotZero => { // JP NZ
 				if !self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
 			},
-			Jump::Zero => { // JP Z
+			Condition::Zero => { // JP Z
 				if self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
 			},
-			Jump::NotCarry => { // JP NC
+			Condition::NotCarry => { // JP NC
 				if !self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
 			},
-			Jump::Carry => { // JP C
+			Condition::Carry => { // JP C
 				if self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
 			}, _ => unreachable!()
 		}
 	}
 
-	fn jump_rel_if(&mut self, source: i8, condition: Jump) -> usize {
+	fn jump_rel_if(&mut self, source: i8, condition: Condition) -> usize {
 		let result = (self.regs.pc as i16).wrapping_add(source as i16);
 		self.jump_if(result as u16, condition) - 1
 	}
-		
+
+	/* Call and Return Instructions */
+	fn call(&mut self, memory: &mut Interconnect, source: u16) {
+		let pc = self.regs.pc;
+		println!("PUSHING ${:02X} TO STACK", pc);
+		self.push(memory, pc);
+		self.regs.pc = source;
+	}
+
+	// Calls based on condition. Returns cycles (varied)
+	fn call_if(&mut self, memory: &mut Interconnect, source: u16, condition: Condition) -> usize {
+		match condition {
+			Condition::NotZero => { // CALL NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::Zero => { // CALL Z
+				if self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::NotCarry => { // CALL NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::Carry => { // CALL C
+				if self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
+			}, _ => unreachable!()
+		}
+	}
+	
+	fn ret(&mut self, memory: &mut Interconnect) {
+		let pc = self.pop(memory);
+		self.regs.pc = pc;
+	}
+
+	// Returns based on condition. Returns cycles (varied)
+	fn ret_if(&mut self, memory: &mut Interconnect, condition: Condition) -> usize {
+		match condition {
+			Condition::NotZero => { // CALL NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::Zero => { // CALL Z
+				if self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::NotCarry => { // CALL NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::Carry => { // CALL C
+				if self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
+			}, _ => unreachable!()
+		}
+	}
+
+	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
+		let source = vector as u16; 
+		self.call(memory, source);
+	}
 
 	// Perform one step of the fetch-decode-execute cycle 
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
 
-		println!("PC: ${:04X}", self.regs.pc);
+		//println!("PC: ${:04X}", self.regs.pc);
 		let opcode = self.next_byte(memory);
-		hex!(opcode);
+		//hex!(opcode);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {
@@ -462,33 +527,60 @@ impl CPU {
 			// JP nn
 			0xC3 => { let nn = self.next_pointer(memory); self.jump(nn); 4 },
 			// JP cc, nn
-			0xC2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::NotZero) },
-			0xCA => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::Zero) },
-			0xD2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::NotCarry) },
-			0xDA => { let nn = self.next_pointer(memory); self.jump_if(nn, Jump::Carry) },
+			0xC2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::NotZero) },
+			0xCA => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::Zero) },
+			0xD2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::NotCarry) },
+			0xDA => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::Carry) },
 			
 			// JR e
 			0x18 => { let e = self.next_byte(memory) as i8; self.jump_rel(e); 3 },
 			// JR cc, e
-			0x20 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::NotZero) },
-			0x28 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::Zero) },
-			0x30 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::NotCarry) },
-			0x38 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Jump::Carry) },
+			0x20 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Condition::NotZero) },
+			0x28 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Condition::Zero) },
+			0x30 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Condition::NotCarry) },
+			0x38 => { let e = self.next_byte(memory) as i8; self.jump_rel_if(e, Condition::Carry) },
 			// JP (HL)
 			0xE9 => { let hl = self.regs.hl(); self.jump(hl); 1 },
+			// CALL
+			0xCD => { let nn = self.next_pointer(memory); self.call(memory, nn); 6 },
+			// CALL cc
+			0xC4 => { let nn = self.next_pointer(memory); self.call_if(memory, nn, Condition::NotZero) },
+			0xCC => { let nn = self.next_pointer(memory); self.call_if(memory, nn, Condition::Zero) },
+			0xD4 => { let nn = self.next_pointer(memory); self.call_if(memory, nn, Condition::NotCarry) },
+			0xDC => { let nn = self.next_pointer(memory); self.call_if(memory, nn, Condition::Carry) },
+			// RET
+			0xC9 => { self.ret(memory); 4 },
+			// RET cc
+			0xC0 => { self.ret_if(memory, Condition::NotZero) },
+			0xC8 => { self.ret_if(memory, Condition::Zero) },
+			0xD0 => { self.ret_if(memory, Condition::NotCarry) },
+			0xD8 => { self.ret_if(memory, Condition::Carry) },
+			// RETI (return from interrupt)
+			0xD9 => { unimplemented!(); },
+			// RST t
+			0xC7 => { self.rst(memory, RstVector::rst1); 4 },
+			0xCF => { self.rst(memory, RstVector::rst2); 4 },
+			0xD7 => { self.rst(memory, RstVector::rst3); 4 },
+			0xDF => { self.rst(memory, RstVector::rst4); 4 },
+			0xE7 => { self.rst(memory, RstVector::rst5); 4 },
+			0xEF => { self.rst(memory, RstVector::rst6); 4 },
+			0xF7 => { self.rst(memory, RstVector::rst7); 4 },
+			0xFF => { self.rst(memory, RstVector::rst8); 4 },
+
+			// NOP
+			0x00 => { 1 }, // easiest opcode of my life 			
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
 			_ => panic!("Unknown Opcode: ${:02X} | {}", opcode, opcode)
 		}
 	}
 
-	pub fn debug(&mut self) {
-		self.regs.a = 0x3c;
-		self.regs.f = 0x00;
+	pub fn debug(&mut self, memory: &mut Interconnect) {
+		//self.regs.pc = 0x8003;
+		//self.regs.set_flag(Flag::Zero, true);
 
 		println!("{}", self.regs);
 
-		println!("{}", self.regs);
 	}
 
 }

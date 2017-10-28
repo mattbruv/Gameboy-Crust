@@ -3,6 +3,7 @@ use vram::*;
 use wram::*;
 use oam::*;
 use hram::*;
+use interrupt::*;
 use memory_map::*;
 
 pub struct Interconnect {
@@ -10,7 +11,8 @@ pub struct Interconnect {
 	vram: Vram,
 	wram: Wram,
 	oam: Oam,
-	hram: Hram
+	hram: Hram,
+	pub interrupt_handler: InterruptHandler,
 }
 
 impl Interconnect {
@@ -20,12 +22,19 @@ impl Interconnect {
 			vram: Vram::new(),
 			wram: Wram::new(),
 			oam: Oam::new(),
-			hram: Hram::new()
+			hram: Hram::new(),
+			interrupt_handler: InterruptHandler::new(),
 		}
 	}
 
 	pub fn read(&self, address: u16) -> u8 {
-		//println!("READ FROM ${:4X}", address);
+
+		// Has a specific register been requested?
+		if let Some(value) = self.read_registers(address) {
+			return value
+		}
+
+		// No specific register, read general data
 		match address {
 			ROM_START  ... ROM_END  => self.rom.read(address),
 			VRAM_START ... VRAM_END => self.vram.read(address - VRAM_START),
@@ -53,6 +62,14 @@ impl Interconnect {
 			OAM_START  ... OAM_END  => self.oam.write(address - OAM_START, data),
 			HRAM_START ... HRAM_END => self.hram.write(address - HRAM_START, data),
 			_ => panic!("Invalid Write")
+		}
+	}
+
+	// Intercept and re-route reads to specific memory registers to their proper location
+	fn read_registers(&self, address: u16) -> Option<u8> {
+		match address {
+			//0xFFFF => Some(3),
+			_ => None
 		}
 	}
 

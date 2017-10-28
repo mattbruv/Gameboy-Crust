@@ -13,10 +13,12 @@ fn main() {
 	println!("{}", rom);
 	let mut gbc = gameboy::GameBoy::new(rom);
 
-	for i in 1..10 {
+	for i in 1..1000 {
 		//gbc.cpu.step(&mut gbc.interconnect);
 	}
 
-	gbc.cpu.debug();
+	let foo = gbc.interconnect.read(0xFFFF);
+	println!("{:02X}", foo);
+	gbc.cpu.debug(&mut gbc.interconnect);
 
 }
