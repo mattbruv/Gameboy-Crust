@@ -1,5 +1,3 @@
-use std::mem::size_of;
-
 // combine two u8s into a u16
 macro_rules! combine {
 	($h:expr, $l:expr) => (

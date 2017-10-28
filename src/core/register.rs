@@ -1,7 +1,7 @@
 use std::fmt;
 use core::helper::*;
 
-enum Flag {
+pub enum Flag {
 	Zero      = 0b10000000,
 	Sub       = 0b01000000,
 	HalfCarry = 0b00100000,
@@ -89,7 +89,7 @@ impl Registers {
 	}
 
 	// Sets the state of a flag in the F register based on a condition
-	fn set_flag(&mut self, flag: Flag, condition: bool) {
+	pub fn set_flag(&mut self, flag: Flag, condition: bool) {
 		if condition {
 			self.f |= flag as u8;
 		}
@@ -98,11 +98,51 @@ impl Registers {
 		}
 	}
 
+	pub fn is_flag_set(&self, flag: Flag) -> bool {
+		match self.f & flag as u8 {
+			0 => false,
+			_ => true
+		}
+	}
+
 }
 
 impl fmt::Display for Registers {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Registers:\nAF: ${:02X}{:02X}\nBC: ${:02X}{:02X}\nDE: ${:02X}{:02X}\nHL: ${:02X}{:02X}\nSP: ${:04X}\nPC: ${:04X}", 
-			self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc)
+		write!(f, "Registers:
+AF: ${:02X}{:02X}
+BC: ${:02X}{:02X}
+DE: ${:02X}{:02X}
+HL: ${:02X}{:02X}
+SP: ${:04X}
+PC: ${:04X}
+Flags: {}{}{}{}", 
+			self.a, self.f,
+			self.b, self.c,
+			self.d, self.e,
+			self.h, self.l,
+			self.sp,
+			self.pc,
+			match (self.f & Flag::Zero as u8)
+			{
+				0 => "",
+				_ => "Zero | "
+			},
+			match (self.f & Flag::Sub as u8)
+			{
+				0 => "",
+				_ => "Sub | "
+			},
+			match (self.f & Flag::HalfCarry as u8)
+			{
+				0 => "",
+				_ => "HalfCarry | "
+			},
+			match (self.f & Flag::Carry as u8)
+			{
+				0 => "",
+				_ => "Carry"
+			},
+		)
 	}
 }

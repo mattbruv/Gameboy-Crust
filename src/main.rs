@@ -2,6 +2,7 @@ mod core;
 
 use std::env;
 use core::*;
+use std::i8::*;
 
 fn main() {
 
@@ -13,7 +14,7 @@ fn main() {
 	let mut gbc = gameboy::GameBoy::new(rom);
 
 	for i in 1..10 {
-		gbc.cpu.step(&mut gbc.interconnect);
+		//gbc.cpu.step(&mut gbc.interconnect);
 	}
 
 	gbc.cpu.debug();
