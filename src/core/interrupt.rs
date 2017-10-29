@@ -1,3 +1,5 @@
+use core::helper::*;
+
 pub enum InterruptFlag {
 	Vblank = 0b00000001,
 	Lcdc   = 0b00000010,
@@ -11,8 +13,8 @@ pub struct InterruptHandler {
 	counter: u32, // counts the number of opcodes since interrupt status changed
 
 	master_enable: bool,
-	reg_ie: u8, // used to control intterupts
-	reg_if: u8, // indicates which type of interrupt is set 
+	pub IE: MemoryRegister, // used to control intterupts
+	pub IF: MemoryRegister, // indicates which type of interrupt is set 
 }
 
 impl InterruptHandler {
@@ -20,8 +22,8 @@ impl InterruptHandler {
 		InterruptHandler {
 			counter: 0,
 			master_enable: false,
-			reg_ie: 0x00,
-			reg_if: 0x00,
+			IE: MemoryRegister::new(0xFA),
+			IF: MemoryRegister::new(0x00),
 		}
 	}
 

@@ -9,27 +9,30 @@ pub enum Bit {
 	Bit7 = 0b10000000,
 }
 
-// "It is considered poor style to implement methods on such primitive types, even though it is possible."
-// - Rust Documentation
-
-// ...I'm going to do it anyway. ¯\_(ツ)_/¯
-pub trait Helper<T> {
-	fn set_bit(&mut self, b: Bit) -> T;
-	fn clear_bit(&mut self, b: Bit) -> T;
-	fn is_set(&self, b: Bit) -> bool;
+pub struct MemoryRegister {
+	value: u8
 }
 
-impl Helper<u8> for u8 {
-	fn set_bit(&mut self, b: Bit) -> u8 {
-		*self | b as u8
+impl MemoryRegister {
+	pub fn new(data: u8) -> MemoryRegister {
+		MemoryRegister {
+			value: data
+		}
 	}
-
-	fn clear_bit(&mut self, b: Bit) -> u8 {
-		*self & !(b as u8)
+	pub fn get(&self) -> u8 {
+		self.value
 	}
-
-	fn is_set(&self, b: Bit) -> bool {
-		*self & b as u8 > 0
+	pub fn set(&mut self, data: u8) {
+		self.value = data;
+	}
+	pub fn set_bit(&mut self, b: Bit) {
+		self.value = self.value | b as u8;
+	}
+	pub fn clear_bit(&mut self, b: Bit) {
+		self.value = self.value & !(b as u8);
+	}
+	pub fn is_set(&self, b: Bit) -> bool {
+		self.value & b as u8 > 0
 	}
 }
 

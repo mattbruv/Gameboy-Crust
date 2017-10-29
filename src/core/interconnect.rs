@@ -65,10 +65,11 @@ impl Interconnect {
 		}
 	}
 
-	// Intercept and re-route reads to specific memory registers to their proper location
+	// Intercept and re-route reads to memory registers to their actual location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
-			0xFFFF => Some(3),
+			IE => Some(self.interrupt_handler.IE.get()),
+			IF => Some(self.interrupt_handler.IF.get()),
 			_ => None
 		}
 	}

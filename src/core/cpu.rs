@@ -1,6 +1,7 @@
 use core::register::*;
 use core::interconnect::*;
 use core::helper::*;
+use core::disassembler::*;
 
 enum Condition {
 	NotZero  = 0b00,
@@ -250,10 +251,9 @@ impl CPU {
 
 	// Perform one step of the fetch-decode-execute cycle 
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
-
-		//println!("PC: ${:04X}", self.regs.pc);
 		let opcode = self.next_byte(memory);
-		//hex!(opcode);
+		//let command = disassemble(&self.regs, &memory, opcode);
+		//println!("{}", command);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {
