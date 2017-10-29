@@ -68,7 +68,7 @@ impl Interconnect {
 	// Intercept and re-route reads to specific memory registers to their proper location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
-			//0xFFFF => Some(3),
+			0xFFFF => Some(3),
 			_ => None
 		}
 	}

@@ -2,7 +2,6 @@ mod core;
 
 use std::env;
 use core::*;
-use std::i8::*;
 
 fn main() {
 

@@ -1,5 +1,6 @@
 use core::register::*;
 use core::interconnect::*;
+use core::helper::*;
 
 enum Condition {
 	NotZero  = 0b00,
@@ -10,14 +11,14 @@ enum Condition {
 
 // Fixed addresses for RST and interrupt calls
 enum RstVector {
-	rst1 = 0x00,
-	rst2 = 0x08,
-	rst3 = 0x10,
-	rst4 = 0x18,
-	rst5 = 0x20,
-	rst6 = 0x28,
-	rst7 = 0x30,
-	rst8 = 0x38,
+	Rst1 = 0x00,
+	Rst2 = 0x08,
+	Rst3 = 0x10,
+	Rst4 = 0x18,
+	Rst5 = 0x20,
+	Rst6 = 0x28,
+	Rst7 = 0x30,
+	Rst8 = 0x38,
 }
 
 pub struct CPU {
@@ -558,17 +559,21 @@ impl CPU {
 			// RETI (return from interrupt)
 			0xD9 => { unimplemented!(); },
 			// RST t
-			0xC7 => { self.rst(memory, RstVector::rst1); 4 },
-			0xCF => { self.rst(memory, RstVector::rst2); 4 },
-			0xD7 => { self.rst(memory, RstVector::rst3); 4 },
-			0xDF => { self.rst(memory, RstVector::rst4); 4 },
-			0xE7 => { self.rst(memory, RstVector::rst5); 4 },
-			0xEF => { self.rst(memory, RstVector::rst6); 4 },
-			0xF7 => { self.rst(memory, RstVector::rst7); 4 },
-			0xFF => { self.rst(memory, RstVector::rst8); 4 },
+			0xC7 => { self.rst(memory, RstVector::Rst1); 4 },
+			0xCF => { self.rst(memory, RstVector::Rst2); 4 },
+			0xD7 => { self.rst(memory, RstVector::Rst3); 4 },
+			0xDF => { self.rst(memory, RstVector::Rst4); 4 },
+			0xE7 => { self.rst(memory, RstVector::Rst5); 4 },
+			0xEF => { self.rst(memory, RstVector::Rst6); 4 },
+			0xF7 => { self.rst(memory, RstVector::Rst7); 4 },
+			0xFF => { self.rst(memory, RstVector::Rst8); 4 },
 
 			// NOP
-			0x00 => { 1 }, // easiest opcode of my life 			
+			0x00 => { 1 }, // easiest opcode of my life
+
+			// GBCPUMAN
+			0xF3 => { memory.interrupt_handler.disable(); 1 }, // Disable interrupts
+			0xFB => { memory.interrupt_handler.enable();  1 }, // Enable interrupts
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
 			_ => panic!("Unknown Opcode: ${:02X} | {}", opcode, opcode)
@@ -580,7 +585,5 @@ impl CPU {
 		//self.regs.set_flag(Flag::Zero, true);
 
 		println!("{}", self.regs);
-
 	}
-
 }
