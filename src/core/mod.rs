@@ -9,6 +9,7 @@ pub mod memory_map;
 pub mod register;
 pub mod rom;
 pub mod cpu;
+pub mod gpu;
 pub mod opcode;
 pub mod vram;
 pub mod wram;

@@ -37,6 +37,10 @@ impl MemoryRegister {
 	pub fn add(&mut self, data: u8) {
 		self.value.wrapping_add(data);
 	}
+
+	pub fn sub(&mut self, data: u8) {
+		self.value.wrapping_sub(data);
+	}
 }
 
 // combine two u8s into a u16

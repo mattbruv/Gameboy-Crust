@@ -3,6 +3,7 @@ use vram::*;
 use wram::*;
 use oam::*;
 use hram::*;
+use gpu::*;
 use interrupt::*;
 use memory_map::*;
 
@@ -12,6 +13,7 @@ pub struct Interconnect {
 	wram: Wram,
 	oam: Oam,
 	hram: Hram,
+	gpu: Gpu,
 	pub interrupt: InterruptHandler,
 }
 
@@ -23,6 +25,7 @@ impl Interconnect {
 			wram: Wram::new(),
 			oam: Oam::new(),
 			hram: Hram::new(),
+			gpu: Gpu::new(),
 			interrupt: InterruptHandler::new(),
 		}
 	}
@@ -67,7 +70,7 @@ impl Interconnect {
 
 	// Take the latest number of machine cycles and keep other hardware in sync
 	pub fn cycles(&mut self, cycles: usize) {
-		// hardware cycles...
+		self.gpu.cycles(cycles);
 	}
 
 	// Intercept and re-route reads to memory registers to their actual location
@@ -75,6 +78,10 @@ impl Interconnect {
 		match address {
 			IE => Some(self.interrupt.IE.get()),
 			IF => Some(self.interrupt.IF.get()),
+			LCDC => Some(self.gpu.LCDC.get()),
+			STAT => Some(self.gpu.STAT.get()),
+			LYC => Some(self.gpu.LYC.get()),
+			LY => Some(self.gpu.LY.get()),
 			_ => None
 		}
 	}
