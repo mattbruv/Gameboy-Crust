@@ -14,4 +14,11 @@ impl GameBoy {
 			cpu: CPU::new()
 		}
 	}
+
+	// Steps the entire machine through the next instruction and returns cycles taken
+	pub fn step(&mut self) -> usize {
+		let cycles = self.cpu.step(&mut self.interconnect);
+		self.interconnect.cycles(cycles);
+		cycles
+	}
 }

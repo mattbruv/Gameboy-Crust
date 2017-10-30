@@ -34,6 +34,9 @@ impl MemoryRegister {
 	pub fn is_set(&self, b: Bit) -> bool {
 		self.value & b as u8 > 0
 	}
+	pub fn add(&mut self, data: u8) {
+		self.value.wrapping_add(data);
+	}
 }
 
 // combine two u8s into a u16

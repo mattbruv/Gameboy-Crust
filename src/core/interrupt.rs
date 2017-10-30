@@ -8,6 +8,14 @@ pub enum InterruptFlag {
 	Joypad = 0b00010000,
 }
 
+pub enum InterruptVector {
+	VBlank = 0x0040,
+	Lcdc   = 0x0048,
+	Timer  = 0x0050,
+	Serial = 0x0058,
+	Joypad = 0x0060,
+}
+
 pub struct InterruptHandler {
 
 	counter: u32, // counts the number of opcodes since interrupt status changed
@@ -33,5 +41,10 @@ impl InterruptHandler {
 
 	pub fn disable(&mut self) {
 		self.master_enable = false;
+	}
+
+	// Requests an interrupt
+	pub fn request_interrupt(flag: InterruptFlag) {
+		unimplemented!();
 	}
 }

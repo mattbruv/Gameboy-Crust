@@ -12,7 +12,7 @@ pub struct Interconnect {
 	wram: Wram,
 	oam: Oam,
 	hram: Hram,
-	pub interrupt_handler: InterruptHandler,
+	pub interrupt: InterruptHandler,
 }
 
 impl Interconnect {
@@ -23,7 +23,7 @@ impl Interconnect {
 			wram: Wram::new(),
 			oam: Oam::new(),
 			hram: Hram::new(),
-			interrupt_handler: InterruptHandler::new(),
+			interrupt: InterruptHandler::new(),
 		}
 	}
 
@@ -65,16 +65,17 @@ impl Interconnect {
 		}
 	}
 
+	// Take the latest number of machine cycles and keep other hardware in sync
+	pub fn cycles(&mut self, cycles: usize) {
+		// hardware cycles...
+	}
+
 	// Intercept and re-route reads to memory registers to their actual location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
-			IE => Some(self.interrupt_handler.IE.get()),
-			IF => Some(self.interrupt_handler.IF.get()),
+			IE => Some(self.interrupt.IE.get()),
+			IF => Some(self.interrupt.IF.get()),
 			_ => None
 		}
-	}
-
-	pub fn test(&self) {
-		println!("size: {}", self.wram.size());
 	}
 }

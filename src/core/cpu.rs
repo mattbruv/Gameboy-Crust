@@ -10,7 +10,7 @@ enum Condition {
 	Carry    = 0b11,
 }
 
-// Fixed addresses for RST and interrupt calls
+// static addresses for RST instruction
 enum RstVector {
 	Rst1 = 0x00,
 	Rst2 = 0x08,
@@ -23,7 +23,7 @@ enum RstVector {
 }
 
 pub struct CPU {
-	regs: Registers
+	pub regs: Registers
 }
 
 impl CPU {
@@ -49,211 +49,13 @@ impl CPU {
 		combine!(high, low)
 	}
 
-	// Pushes 16 bit data onto the stack
-	fn push(&mut self, memory: &mut Interconnect, data: u16) {
-		self.regs.sp = self.regs.sp.wrapping_sub(1);
-		memory.write(self.regs.sp, high!(data));
-		self.regs.sp = self.regs.sp.wrapping_sub(1);
-		memory.write(self.regs.sp, low!(data));
-	}
-
-	// Pops highest 16 bits from stack
-	fn pop(&mut self, memory: &mut Interconnect) -> u16 {
-		let low = memory.read(self.regs.sp);
-		self.regs.sp = self.regs.sp.wrapping_add(1);
-		let high = memory.read(self.regs.sp);
-		self.regs.sp = self.regs.sp.wrapping_add(1);
-		combine!(high, low)
-	}
-
-	/* 8-bit operations */
-
-	fn add_u8(&mut self, n: u8, use_carry: bool) {
-		let a = self.regs.a;
-		let c = (use_carry && self.regs.is_flag_set(Flag::Carry)) as u8;
-		let result = a.wrapping_add(n).wrapping_add(c);
-		let carry = (a as i16 + n as i16 + c as i16) > 0xFF;
-		let half_carry = (a & 0xF) + (n & 0xF) + c > 0xF;
-		self.regs.set_flag(Flag::Carry, carry);
-		self.regs.set_flag(Flag::HalfCarry, half_carry);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		self.regs.a = result;
-	}
-
-	fn sub_u8(&mut self, n: u8, use_carry: bool) {
-		let a = self.regs.a;
-		let c = (use_carry && self.regs.is_flag_set(Flag::Carry)) as u8;
-		let result = a.wrapping_sub(n).wrapping_sub(c);
-		let carry = (a as i16 - n as i16 - c as i16) < 0;
-		let half_carry = (a & 0xF) as i16 - (n & 0xF) as i16 - (c as i16) < 0;
-		self.regs.set_flag(Flag::Carry, carry);
-		self.regs.set_flag(Flag::HalfCarry, half_carry);
-		self.regs.set_flag(Flag::Sub, true);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		self.regs.a = result;
-	}
-
-	fn and_u8(&mut self, n: u8) {
-		let result = self.regs.a & n;
-		self.regs.set_flag(Flag::Carry, false);
-		self.regs.set_flag(Flag::HalfCarry, true);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		self.regs.a = result;
-	}
-
-	fn or_u8(&mut self, n: u8) {
-		let result = self.regs.a | n;
-		self.regs.set_flag(Flag::Carry, false);
-		self.regs.set_flag(Flag::HalfCarry, false);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		self.regs.a = result;
-	}
-
-	fn xor_u8(&mut self, n: u8) {
-		let result = self.regs.a ^ n;
-		self.regs.set_flag(Flag::Carry, false);
-		self.regs.set_flag(Flag::HalfCarry, false);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		self.regs.a = result;
-	}
-
-	// Compare A with n. This is basically a A - n subtraction but the results are thrown away
-	fn cp_u8(&mut self, n: u8) {
-		let a = self.regs.a;
-		self.sub_u8(n, false);
-		self.regs.a = a;
-	}
-
-	fn inc_u8(&mut self, n: u8) -> u8 {
-		let result = n.wrapping_add(1);
-		let half_carry = (n & 0xF) + 1 > 0xF;
-		self.regs.set_flag(Flag::HalfCarry, half_carry);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		result
-	}
-
-	fn dec_u8(&mut self, n: u8) -> u8 {
-		let result = n.wrapping_sub(1);
-		let half_carry = ((n & 0xF) as i16) - 1 < 0;
-		self.regs.set_flag(Flag::HalfCarry, half_carry);
-		self.regs.set_flag(Flag::Sub, true);
-		self.regs.set_flag(Flag::Zero, (result == 0));
-		result
-	}
-
-	
-	/* 16-bit operations */
-
-	fn add_hl(&mut self, n: u16) {
-		let hl = self.regs.hl();
-		let (result, carry) = hl.overflowing_add(n);
-		let half_carry = ((hl & 0xFFF) + (n & 0xFFF)) & 0x1000 != 0;
-		self.regs.set_flag(Flag::Carry, carry);
-		self.regs.set_flag(Flag::HalfCarry, half_carry);
-		self.regs.set_flag(Flag::Sub, false);
-		self.regs.set_hl(result);
-	}
-
-	/* Jump Instructions */
-
-	fn jump(&mut self, source: u16) {
-		self.regs.pc = source;
-	}
-
-	// Jumps relative to a signed i8
-	fn jump_rel(&mut self, source: i8) {
-		let result = (self.regs.pc as i16).wrapping_add(source as i16);
-		self.jump(result as u16);
-	}
-
-	// Determines whether or not to jump based on passed argument
-	// returns number of cycles (varied)
-	fn jump_if(&mut self, source: u16, condition: Condition) -> usize {
-		match condition {
-			Condition::NotZero => { // JP NZ
-				if !self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
-			},
-			Condition::Zero => { // JP Z
-				if self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
-			},
-			Condition::NotCarry => { // JP NC
-				if !self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
-			},
-			Condition::Carry => { // JP C
-				if self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
-			}, _ => unreachable!()
-		}
-	}
-
-	fn jump_rel_if(&mut self, source: i8, condition: Condition) -> usize {
-		let result = (self.regs.pc as i16).wrapping_add(source as i16);
-		self.jump_if(result as u16, condition) - 1
-	}
-
-	/* Call and Return Instructions */
-	fn call(&mut self, memory: &mut Interconnect, source: u16) {
-		let pc = self.regs.pc;
-		println!("PUSHING ${:02X} TO STACK", pc);
-		self.push(memory, pc);
-		self.regs.pc = source;
-	}
-
-	// Calls based on condition. Returns cycles (varied)
-	fn call_if(&mut self, memory: &mut Interconnect, source: u16, condition: Condition) -> usize {
-		match condition {
-			Condition::NotZero => { // CALL NZ
-				if !self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
-			},
-			Condition::Zero => { // CALL Z
-				if self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
-			},
-			Condition::NotCarry => { // CALL NC
-				if !self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
-			},
-			Condition::Carry => { // CALL C
-				if self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
-			}, _ => unreachable!()
-		}
-	}
-	
-	fn ret(&mut self, memory: &mut Interconnect) {
-		let pc = self.pop(memory);
-		self.regs.pc = pc;
-	}
-
-	// Returns based on condition. Returns cycles (varied)
-	fn ret_if(&mut self, memory: &mut Interconnect, condition: Condition) -> usize {
-		match condition {
-			Condition::NotZero => { // CALL NZ
-				if !self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
-			},
-			Condition::Zero => { // CALL Z
-				if self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
-			},
-			Condition::NotCarry => { // CALL NC
-				if !self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
-			},
-			Condition::Carry => { // CALL C
-				if self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
-			}, _ => unreachable!()
-		}
-	}
-
-	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
-		let source = vector as u16; 
-		self.call(memory, source);
-	}
-
 	// Perform one step of the fetch-decode-execute cycle 
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
 		let opcode = self.next_byte(memory);
 		//let command = disassemble(&self.regs, &memory, opcode);
 		//println!("{}", command);
+
+		println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {
@@ -572,15 +374,215 @@ impl CPU {
 			0x00 => { 1 }, // easiest opcode of my life
 
 			// GBCPUMAN
-			0xF3 => { memory.interrupt_handler.disable(); 1 }, // Disable interrupts
-			0xFB => { memory.interrupt_handler.enable();  1 }, // Enable interrupts
+			0xF3 => { memory.interrupt.disable(); 1 }, // Disable interrupts
+			0xFB => { memory.interrupt.enable();  1 }, // Enable interrupts
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
 			_ => panic!("Unknown Opcode: ${:02X} | {}", opcode, opcode)
 		}
 	}
 
-	pub fn debug(&mut self, memory: &mut Interconnect) {
+		// Pushes 16 bit data onto the stack
+	fn push(&mut self, memory: &mut Interconnect, data: u16) {
+		self.regs.sp = self.regs.sp.wrapping_sub(1);
+		memory.write(self.regs.sp, high!(data));
+		self.regs.sp = self.regs.sp.wrapping_sub(1);
+		memory.write(self.regs.sp, low!(data));
+	}
+
+	// Pops highest 16 bits from stack
+	fn pop(&mut self, memory: &mut Interconnect) -> u16 {
+		let low = memory.read(self.regs.sp);
+		self.regs.sp = self.regs.sp.wrapping_add(1);
+		let high = memory.read(self.regs.sp);
+		self.regs.sp = self.regs.sp.wrapping_add(1);
+		combine!(high, low)
+	}
+
+	/* 8-bit operations */
+
+	fn add_u8(&mut self, n: u8, use_carry: bool) {
+		let a = self.regs.a;
+		let c = (use_carry && self.regs.is_flag_set(Flag::Carry)) as u8;
+		let result = a.wrapping_add(n).wrapping_add(c);
+		let carry = (a as i16 + n as i16 + c as i16) > 0xFF;
+		let half_carry = (a & 0xF) + (n & 0xF) + c > 0xF;
+		self.regs.set_flag(Flag::Carry, carry);
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn sub_u8(&mut self, n: u8, use_carry: bool) {
+		let a = self.regs.a;
+		let c = (use_carry && self.regs.is_flag_set(Flag::Carry)) as u8;
+		let result = a.wrapping_sub(n).wrapping_sub(c);
+		let carry = (a as i16 - n as i16 - c as i16) < 0;
+		let half_carry = (a & 0xF) as i16 - (n & 0xF) as i16 - (c as i16) < 0;
+		self.regs.set_flag(Flag::Carry, carry);
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, true);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn and_u8(&mut self, n: u8) {
+		let result = self.regs.a & n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, true);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn or_u8(&mut self, n: u8) {
+		let result = self.regs.a | n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	fn xor_u8(&mut self, n: u8) {
+		let result = self.regs.a ^ n;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		self.regs.a = result;
+	}
+
+	// Compare A with n. This is basically a A - n subtraction but the results are thrown away
+	fn cp_u8(&mut self, n: u8) {
+		let a = self.regs.a;
+		self.sub_u8(n, false);
+		self.regs.a = a;
+	}
+
+	fn inc_u8(&mut self, n: u8) -> u8 {
+		let result = n.wrapping_add(1);
+		let half_carry = (n & 0xF) + 1 > 0xF;
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		result
+	}
+
+	fn dec_u8(&mut self, n: u8) -> u8 {
+		let result = n.wrapping_sub(1);
+		let half_carry = ((n & 0xF) as i16) - 1 < 0;
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, true);
+		self.regs.set_flag(Flag::Zero, (result == 0));
+		result
+	}
+
+	
+	/* 16-bit operations */
+
+	fn add_hl(&mut self, n: u16) {
+		let hl = self.regs.hl();
+		let (result, carry) = hl.overflowing_add(n);
+		let half_carry = ((hl & 0xFFF) + (n & 0xFFF)) & 0x1000 != 0;
+		self.regs.set_flag(Flag::Carry, carry);
+		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_hl(result);
+	}
+
+	/* Jump Instructions */
+
+	fn jump(&mut self, source: u16) {
+		self.regs.pc = source;
+	}
+
+	// Jumps relative to a signed i8
+	fn jump_rel(&mut self, source: i8) {
+		let result = (self.regs.pc as i16).wrapping_add(source as i16);
+		self.jump(result as u16);
+	}
+
+	// Determines whether or not to jump based on passed argument
+	// returns number of cycles (varied)
+	fn jump_if(&mut self, source: u16, condition: Condition) -> usize {
+		match condition {
+			Condition::NotZero => { // JP NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
+			},
+			Condition::Zero => { // JP Z
+				if self.regs.is_flag_set(Flag::Zero) { self.jump(source); 4 } else { 3 }
+			},
+			Condition::NotCarry => { // JP NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
+			},
+			Condition::Carry => { // JP C
+				if self.regs.is_flag_set(Flag::Carry) { self.jump(source); 4 } else { 3 }
+			}, _ => unreachable!()
+		}
+	}
+
+	fn jump_rel_if(&mut self, source: i8, condition: Condition) -> usize {
+		let result = (self.regs.pc as i16).wrapping_add(source as i16);
+		self.jump_if(result as u16, condition) - 1
+	}
+
+	/* Call and Return Instructions */
+	fn call(&mut self, memory: &mut Interconnect, source: u16) {
+		let pc = self.regs.pc;
+		println!("PUSHING ${:02X} TO STACK", pc);
+		self.push(memory, pc);
+		self.regs.pc = source;
+	}
+
+	// Calls based on condition. Returns cycles (varied)
+	fn call_if(&mut self, memory: &mut Interconnect, source: u16, condition: Condition) -> usize {
+		match condition {
+			Condition::NotZero => { // CALL NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::Zero => { // CALL Z
+				if self.regs.is_flag_set(Flag::Zero) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::NotCarry => { // CALL NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
+			},
+			Condition::Carry => { // CALL C
+				if self.regs.is_flag_set(Flag::Carry) { self.call(memory, source); 6 } else { 3 }
+			}, _ => unreachable!()
+		}
+	}
+	
+	fn ret(&mut self, memory: &mut Interconnect) {
+		let pc = self.pop(memory);
+		self.regs.pc = pc;
+	}
+
+	// Returns based on condition. Returns cycles (varied)
+	fn ret_if(&mut self, memory: &mut Interconnect, condition: Condition) -> usize {
+		match condition {
+			Condition::NotZero => { // CALL NZ
+				if !self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::Zero => { // CALL Z
+				if self.regs.is_flag_set(Flag::Zero) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::NotCarry => { // CALL NC
+				if !self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
+			},
+			Condition::Carry => { // CALL C
+				if self.regs.is_flag_set(Flag::Carry) { self.ret(memory); 5 } else { 2 }
+			}, _ => unreachable!()
+		}
+	}
+
+	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
+		let source = vector as u16; 
+		self.call(memory, source);
+	}
+
+	pub fn debug(&self) {
 		//self.regs.pc = 0x8003;
 		//self.regs.set_flag(Flag::Zero, true);
 
