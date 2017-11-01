@@ -371,12 +371,13 @@ impl CPU {
 			0xEF => { self.rst(memory, RstVector::Rst6); 4 },
 			0xF7 => { self.rst(memory, RstVector::Rst7); 4 },
 			0xFF => { self.rst(memory, RstVector::Rst8); 4 },
-
+			// Rotates
 			0x07 => { let a = self.regs.a; self.regs.a = self.rotate_left(a, false, false); 1 },
 			0x17 => { let a = self.regs.a; self.regs.a = self.rotate_left(a, true, false); 1 },
 			0x0F => { let a = self.regs.a; self.regs.a = self.rotate_right(a, false, false); 1 },
 			0x1F => { let a = self.regs.a; self.regs.a = self.rotate_right(a, true, false); 1 },
-
+			// Sub-Operations
+			0xCB => { self.sub_op(memory) },
 			// CPL
 			0x2F => { self.cpl(); 1 }
 			// NOP
@@ -387,7 +388,307 @@ impl CPU {
 			0xFB => { memory.interrupt.enable();  1 }, // Enable interrupts
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
-			_ => panic!("Unknown Opcode: ${:02X} @ ${:04X} | {}", opcode, pc, opcode)
+			_ => panic!("Unknown Opcode: ${:02X} @ ${:04X} dec: {}", opcode, pc, opcode)
+		}
+	}
+
+	// Evaluates all sub-operations under CPU instr 0xCB
+	// Returns number of cycles of operation
+	fn sub_op(&mut self, memory: &mut Interconnect) -> usize {
+		let pc = self.regs.pc;
+		let opcode = self.next_byte(memory);
+		let regs = self.regs;
+		
+		match opcode {
+			// Rotate Left
+			0x07 => { self.regs.a = self.rotate_left(regs.a, false, true); 2 },
+			0x00 => { self.regs.b = self.rotate_left(regs.b, false, true); 2 },
+			0x01 => { self.regs.c = self.rotate_left(regs.c, false, true); 2 },
+			0x02 => { self.regs.d = self.rotate_left(regs.d, false, true); 2 },
+			0x03 => { self.regs.e = self.rotate_left(regs.e, false, true); 2 },
+			0x04 => { self.regs.h = self.rotate_left(regs.h, false, true); 2 },
+			0x05 => { self.regs.l = self.rotate_left(regs.l, false, true); 2 },
+			0x06 => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.rotate_left(n, false, false)); 
+			4 },
+			0x17 => { self.regs.a = self.rotate_left(regs.a, true, true); 2 },
+			0x10 => { self.regs.b = self.rotate_left(regs.b, true, true); 2 },
+			0x11 => { self.regs.c = self.rotate_left(regs.c, true, true); 2 },
+			0x12 => { self.regs.d = self.rotate_left(regs.d, true, true); 2 },
+			0x13 => { self.regs.e = self.rotate_left(regs.e, true, true); 2 },
+			0x14 => { self.regs.h = self.rotate_left(regs.h, true, true); 2 },
+			0x15 => { self.regs.l = self.rotate_left(regs.l, true, true); 2 },
+			0x16 => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.rotate_left(n, true, false)); 
+			4 },
+			// Rotate Right
+			0x0F => { self.regs.a = self.rotate_right(regs.a, false, true); 2 },
+			0x08 => { self.regs.b = self.rotate_right(regs.b, false, true); 2 },
+			0x09 => { self.regs.c = self.rotate_right(regs.c, false, true); 2 },
+			0x0A => { self.regs.d = self.rotate_right(regs.d, false, true); 2 },
+			0x0B => { self.regs.e = self.rotate_right(regs.e, false, true); 2 },
+			0x0C => { self.regs.h = self.rotate_right(regs.h, false, true); 2 },
+			0x0D => { self.regs.l = self.rotate_right(regs.l, false, true); 2 },
+			0x0E => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.rotate_right(n, false, false)); 
+			4 },
+			0x1F => { self.regs.a = self.rotate_right(regs.a, true, true); 2 },
+			0x18 => { self.regs.b = self.rotate_right(regs.b, true, true); 2 },
+			0x19 => { self.regs.c = self.rotate_right(regs.c, true, true); 2 },
+			0x1A => { self.regs.d = self.rotate_right(regs.d, true, true); 2 },
+			0x1B => { self.regs.e = self.rotate_right(regs.e, true, true); 2 },
+			0x1C => { self.regs.h = self.rotate_right(regs.h, true, true); 2 },
+			0x1D => { self.regs.l = self.rotate_right(regs.l, true, true); 2 },
+			0x1E => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.rotate_right(n, true, false)); 
+			4 },
+			// Shift Left
+			0x27 => { self.regs.a = self.shift_left(regs.a); 2 },
+			0x20 => { self.regs.b = self.shift_left(regs.b); 2 },
+			0x21 => { self.regs.c = self.shift_left(regs.c); 2 },
+			0x22 => { self.regs.d = self.shift_left(regs.d); 2 },
+			0x23 => { self.regs.e = self.shift_left(regs.e); 2 },
+			0x24 => { self.regs.h = self.shift_left(regs.h); 2 },
+			0x25 => { self.regs.l = self.shift_left(regs.l); 2 },
+			0x26 => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.shift_left(n)); 
+			4 },
+			// Shift Right
+			0x2F => { self.regs.a = self.shift_right(regs.a, true); 2 },
+			0x28 => { self.regs.b = self.shift_right(regs.b, true); 2 },
+			0x29 => { self.regs.c = self.shift_right(regs.c, true); 2 },
+			0x2A => { self.regs.d = self.shift_right(regs.d, true); 2 },
+			0x2B => { self.regs.e = self.shift_right(regs.e, true); 2 },
+			0x2C => { self.regs.h = self.shift_right(regs.h, true); 2 },
+			0x2D => { self.regs.l = self.shift_right(regs.l, true); 2 },
+			0x2E => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.shift_right(n, true)); 
+			4 },
+			0x3F => { self.regs.a = self.shift_right(regs.a, false); 2 },
+			0x38 => { self.regs.b = self.shift_right(regs.b, false); 2 },
+			0x39 => { self.regs.c = self.shift_right(regs.c, false); 2 },
+			0x3A => { self.regs.d = self.shift_right(regs.d, false); 2 },
+			0x3B => { self.regs.e = self.shift_right(regs.e, false); 2 },
+			0x3C => { self.regs.h = self.shift_right(regs.h, false); 2 },
+			0x3D => { self.regs.l = self.shift_right(regs.l, false); 2 },
+			0x3E => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.shift_right(n, false)); 
+			4 },
+			// Swap
+			0x37 => { self.regs.a = self.swap(regs.a); 2 },
+			0x30 => { self.regs.b = self.swap(regs.b); 2 },
+			0x31 => { self.regs.c = self.swap(regs.c); 2 },
+			0x32 => { self.regs.d = self.swap(regs.d); 2 },
+			0x33 => { self.regs.e = self.swap(regs.e); 2 },
+			0x34 => { self.regs.h = self.swap(regs.h); 2 },
+			0x35 => { self.regs.l = self.swap(regs.l); 2 },
+			0x36 => { 
+				let n = memory.read(regs.hl());
+				memory.write(regs.hl(), self.swap(n)); 
+			4 },
+			// Bit
+			0x47 => { self.bit(regs.a, Bit::Bit0); 2 },
+			0x4F => { self.bit(regs.a, Bit::Bit1); 2 },
+			0x57 => { self.bit(regs.a, Bit::Bit2); 2 },
+			0x5F => { self.bit(regs.a, Bit::Bit3); 2 },
+			0x67 => { self.bit(regs.a, Bit::Bit4); 2 },
+			0x6F => { self.bit(regs.a, Bit::Bit5); 2 },
+			0x77 => { self.bit(regs.a, Bit::Bit6); 2 },
+			0x7F => { self.bit(regs.a, Bit::Bit7); 2 },
+			0x40 => { self.bit(regs.b, Bit::Bit0); 2 },
+			0x48 => { self.bit(regs.b, Bit::Bit1); 2 },
+			0x50 => { self.bit(regs.b, Bit::Bit2); 2 },
+			0x58 => { self.bit(regs.b, Bit::Bit3); 2 },
+			0x60 => { self.bit(regs.b, Bit::Bit4); 2 },
+			0x68 => { self.bit(regs.b, Bit::Bit5); 2 },
+			0x70 => { self.bit(regs.b, Bit::Bit6); 2 },
+			0x78 => { self.bit(regs.b, Bit::Bit7); 2 },
+			0x41 => { self.bit(regs.c, Bit::Bit0); 2 },
+			0x49 => { self.bit(regs.c, Bit::Bit1); 2 },
+			0x51 => { self.bit(regs.c, Bit::Bit2); 2 },
+			0x59 => { self.bit(regs.c, Bit::Bit3); 2 },
+			0x61 => { self.bit(regs.c, Bit::Bit4); 2 },
+			0x69 => { self.bit(regs.c, Bit::Bit5); 2 },
+			0x71 => { self.bit(regs.c, Bit::Bit6); 2 },
+			0x79 => { self.bit(regs.c, Bit::Bit7); 2 },
+			0x42 => { self.bit(regs.d, Bit::Bit0); 2 },
+			0x4A => { self.bit(regs.d, Bit::Bit1); 2 },
+			0x52 => { self.bit(regs.d, Bit::Bit2); 2 },
+			0x5A => { self.bit(regs.d, Bit::Bit3); 2 },
+			0x62 => { self.bit(regs.d, Bit::Bit4); 2 },
+			0x6A => { self.bit(regs.d, Bit::Bit5); 2 },
+			0x72 => { self.bit(regs.d, Bit::Bit6); 2 },
+			0x7A => { self.bit(regs.d, Bit::Bit7); 2 },
+			0x43 => { self.bit(regs.e, Bit::Bit0); 2 },
+			0x4B => { self.bit(regs.e, Bit::Bit1); 2 },
+			0x53 => { self.bit(regs.e, Bit::Bit2); 2 },
+			0x5B => { self.bit(regs.e, Bit::Bit3); 2 },
+			0x63 => { self.bit(regs.e, Bit::Bit4); 2 },
+			0x6B => { self.bit(regs.e, Bit::Bit5); 2 },
+			0x73 => { self.bit(regs.e, Bit::Bit6); 2 },
+			0x7B => { self.bit(regs.e, Bit::Bit7); 2 },
+			0x44 => { self.bit(regs.h, Bit::Bit0); 2 },
+			0x4C => { self.bit(regs.h, Bit::Bit1); 2 },
+			0x54 => { self.bit(regs.h, Bit::Bit2); 2 },
+			0x5C => { self.bit(regs.h, Bit::Bit3); 2 },
+			0x64 => { self.bit(regs.h, Bit::Bit4); 2 },
+			0x6C => { self.bit(regs.h, Bit::Bit5); 2 },
+			0x74 => { self.bit(regs.h, Bit::Bit6); 2 },
+			0x7C => { self.bit(regs.h, Bit::Bit7); 2 },
+			0x45 => { self.bit(regs.l, Bit::Bit0); 2 },
+			0x4D => { self.bit(regs.l, Bit::Bit1); 2 },
+			0x55 => { self.bit(regs.l, Bit::Bit2); 2 },
+			0x5D => { self.bit(regs.l, Bit::Bit3); 2 },
+			0x65 => { self.bit(regs.l, Bit::Bit4); 2 },
+			0x6D => { self.bit(regs.l, Bit::Bit5); 2 },
+			0x75 => { self.bit(regs.l, Bit::Bit6); 2 },
+			0x7D => { self.bit(regs.l, Bit::Bit7); 2 },
+			0x46 => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit0); 3 },
+			0x4E => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit1); 3 },
+			0x56 => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit2); 3 },
+			0x5E => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit3); 3 },
+			0x66 => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit4); 3 },
+			0x6E => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit5); 3 },
+			0x76 => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit6); 3 },
+			0x7E => { let n = memory.read(regs.hl()); self.bit(n, Bit::Bit7); 3 },
+			// Set
+			0xC7 => { self.regs.a = self.set(regs.a, Bit::Bit0); 2 },
+			0xCF => { self.regs.a = self.set(regs.a, Bit::Bit1); 2 },
+			0xD7 => { self.regs.a = self.set(regs.a, Bit::Bit2); 2 },
+			0xDF => { self.regs.a = self.set(regs.a, Bit::Bit3); 2 },
+			0xE7 => { self.regs.a = self.set(regs.a, Bit::Bit4); 2 },
+			0xEF => { self.regs.a = self.set(regs.a, Bit::Bit5); 2 },
+			0xF7 => { self.regs.a = self.set(regs.a, Bit::Bit6); 2 },
+			0xFF => { self.regs.a = self.set(regs.a, Bit::Bit7); 2 },
+			0xC0 => { self.regs.b = self.set(regs.b, Bit::Bit0); 2 },
+			0xC8 => { self.regs.b = self.set(regs.b, Bit::Bit1); 2 },
+			0xD0 => { self.regs.b = self.set(regs.b, Bit::Bit2); 2 },
+			0xD8 => { self.regs.b = self.set(regs.b, Bit::Bit3); 2 },
+			0xE0 => { self.regs.b = self.set(regs.b, Bit::Bit4); 2 },
+			0xE8 => { self.regs.b = self.set(regs.b, Bit::Bit5); 2 },
+			0xF0 => { self.regs.b = self.set(regs.b, Bit::Bit6); 2 },
+			0xF8 => { self.regs.b = self.set(regs.b, Bit::Bit7); 2 },
+			0xC1 => { self.regs.c = self.set(regs.c, Bit::Bit0); 2 },
+			0xC9 => { self.regs.c = self.set(regs.c, Bit::Bit1); 2 },
+			0xD1 => { self.regs.c = self.set(regs.c, Bit::Bit2); 2 },
+			0xD9 => { self.regs.c = self.set(regs.c, Bit::Bit3); 2 },
+			0xE1 => { self.regs.c = self.set(regs.c, Bit::Bit4); 2 },
+			0xE9 => { self.regs.c = self.set(regs.c, Bit::Bit5); 2 },
+			0xF1 => { self.regs.c = self.set(regs.c, Bit::Bit6); 2 },
+			0xF9 => { self.regs.c = self.set(regs.c, Bit::Bit7); 2 },
+			0xC2 => { self.regs.d = self.set(regs.d, Bit::Bit0); 2 },
+			0xCA => { self.regs.d = self.set(regs.d, Bit::Bit1); 2 },
+			0xD2 => { self.regs.d = self.set(regs.d, Bit::Bit2); 2 },
+			0xDA => { self.regs.d = self.set(regs.d, Bit::Bit3); 2 },
+			0xE2 => { self.regs.d = self.set(regs.d, Bit::Bit4); 2 },
+			0xEA => { self.regs.d = self.set(regs.d, Bit::Bit5); 2 },
+			0xF2 => { self.regs.d = self.set(regs.d, Bit::Bit6); 2 },
+			0xFA => { self.regs.d = self.set(regs.d, Bit::Bit7); 2 },
+			0xC3 => { self.regs.e = self.set(regs.e, Bit::Bit0); 2 },
+			0xCB => { self.regs.e = self.set(regs.e, Bit::Bit1); 2 },
+			0xD3 => { self.regs.e = self.set(regs.e, Bit::Bit2); 2 },
+			0xDB => { self.regs.e = self.set(regs.e, Bit::Bit3); 2 },
+			0xE3 => { self.regs.e = self.set(regs.e, Bit::Bit4); 2 },
+			0xEB => { self.regs.e = self.set(regs.e, Bit::Bit5); 2 },
+			0xF3 => { self.regs.e = self.set(regs.e, Bit::Bit6); 2 },
+			0xFB => { self.regs.e = self.set(regs.e, Bit::Bit7); 2 },
+			0xC4 => { self.regs.h = self.set(regs.h, Bit::Bit0); 2 },
+			0xCC => { self.regs.h = self.set(regs.h, Bit::Bit1); 2 },
+			0xD4 => { self.regs.h = self.set(regs.h, Bit::Bit2); 2 },
+			0xDC => { self.regs.h = self.set(regs.h, Bit::Bit3); 2 },
+			0xE4 => { self.regs.h = self.set(regs.h, Bit::Bit4); 2 },
+			0xEC => { self.regs.h = self.set(regs.h, Bit::Bit5); 2 },
+			0xF4 => { self.regs.h = self.set(regs.h, Bit::Bit6); 2 },
+			0xFC => { self.regs.h = self.set(regs.h, Bit::Bit7); 2 },
+			0xC5 => { self.regs.l = self.set(regs.l, Bit::Bit0); 2 },
+			0xCD => { self.regs.l = self.set(regs.l, Bit::Bit1); 2 },
+			0xD5 => { self.regs.l = self.set(regs.l, Bit::Bit2); 2 },
+			0xDD => { self.regs.l = self.set(regs.l, Bit::Bit3); 2 },
+			0xE5 => { self.regs.l = self.set(regs.l, Bit::Bit4); 2 },
+			0xED => { self.regs.l = self.set(regs.l, Bit::Bit5); 2 },
+			0xF5 => { self.regs.l = self.set(regs.l, Bit::Bit6); 2 },
+			0xFD => { self.regs.l = self.set(regs.l, Bit::Bit7); 2 },
+			0xC6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit0)); 4 },
+			0xCE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit1)); 4 },
+			0xD6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit2)); 4 },
+			0xDE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit3)); 4 },
+			0xE6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit4)); 4 },
+			0xEE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit5)); 4 },
+			0xF6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit6)); 4 },
+			0xFE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.set(n, Bit::Bit7)); 4 },
+			// Reset
+			0x87 => { self.regs.a = self.res(regs.a, Bit::Bit0); 2 },
+			0x8F => { self.regs.a = self.res(regs.a, Bit::Bit1); 2 },
+			0x97 => { self.regs.a = self.res(regs.a, Bit::Bit2); 2 },
+			0x9F => { self.regs.a = self.res(regs.a, Bit::Bit3); 2 },
+			0xA7 => { self.regs.a = self.res(regs.a, Bit::Bit4); 2 },
+			0xAF => { self.regs.a = self.res(regs.a, Bit::Bit5); 2 },
+			0xB7 => { self.regs.a = self.res(regs.a, Bit::Bit6); 2 },
+			0xBF => { self.regs.a = self.res(regs.a, Bit::Bit7); 2 },
+			0x80 => { self.regs.b = self.res(regs.b, Bit::Bit0); 2 },
+			0x88 => { self.regs.b = self.res(regs.b, Bit::Bit1); 2 },
+			0x90 => { self.regs.b = self.res(regs.b, Bit::Bit2); 2 },
+			0x98 => { self.regs.b = self.res(regs.b, Bit::Bit3); 2 },
+			0xA0 => { self.regs.b = self.res(regs.b, Bit::Bit4); 2 },
+			0xA8 => { self.regs.b = self.res(regs.b, Bit::Bit5); 2 },
+			0xB0 => { self.regs.b = self.res(regs.b, Bit::Bit6); 2 },
+			0xB8 => { self.regs.b = self.res(regs.b, Bit::Bit7); 2 },
+			0x81 => { self.regs.c = self.res(regs.c, Bit::Bit0); 2 },
+			0x89 => { self.regs.c = self.res(regs.c, Bit::Bit1); 2 },
+			0x91 => { self.regs.c = self.res(regs.c, Bit::Bit2); 2 },
+			0x99 => { self.regs.c = self.res(regs.c, Bit::Bit3); 2 },
+			0xA1 => { self.regs.c = self.res(regs.c, Bit::Bit4); 2 },
+			0xA9 => { self.regs.c = self.res(regs.c, Bit::Bit5); 2 },
+			0xB1 => { self.regs.c = self.res(regs.c, Bit::Bit6); 2 },
+			0xB9 => { self.regs.c = self.res(regs.c, Bit::Bit7); 2 },
+			0x82 => { self.regs.d = self.res(regs.d, Bit::Bit0); 2 },
+			0x8A => { self.regs.d = self.res(regs.d, Bit::Bit1); 2 },
+			0x92 => { self.regs.d = self.res(regs.d, Bit::Bit2); 2 },
+			0x9A => { self.regs.d = self.res(regs.d, Bit::Bit3); 2 },
+			0xA2 => { self.regs.d = self.res(regs.d, Bit::Bit4); 2 },
+			0xAA => { self.regs.d = self.res(regs.d, Bit::Bit5); 2 },
+			0xB2 => { self.regs.d = self.res(regs.d, Bit::Bit6); 2 },
+			0xBA => { self.regs.d = self.res(regs.d, Bit::Bit7); 2 },
+			0x83 => { self.regs.e = self.res(regs.e, Bit::Bit0); 2 },
+			0x8B => { self.regs.e = self.res(regs.e, Bit::Bit1); 2 },
+			0x93 => { self.regs.e = self.res(regs.e, Bit::Bit2); 2 },
+			0x9B => { self.regs.e = self.res(regs.e, Bit::Bit3); 2 },
+			0xA3 => { self.regs.e = self.res(regs.e, Bit::Bit4); 2 },
+			0xAB => { self.regs.e = self.res(regs.e, Bit::Bit5); 2 },
+			0xB3 => { self.regs.e = self.res(regs.e, Bit::Bit6); 2 },
+			0xBB => { self.regs.e = self.res(regs.e, Bit::Bit7); 2 },
+			0x84 => { self.regs.h = self.res(regs.h, Bit::Bit0); 2 },
+			0x8C => { self.regs.h = self.res(regs.h, Bit::Bit1); 2 },
+			0x94 => { self.regs.h = self.res(regs.h, Bit::Bit2); 2 },
+			0x9C => { self.regs.h = self.res(regs.h, Bit::Bit3); 2 },
+			0xA4 => { self.regs.h = self.res(regs.h, Bit::Bit4); 2 },
+			0xAC => { self.regs.h = self.res(regs.h, Bit::Bit5); 2 },
+			0xB4 => { self.regs.h = self.res(regs.h, Bit::Bit6); 2 },
+			0xBC => { self.regs.h = self.res(regs.h, Bit::Bit7); 2 },
+			0x85 => { self.regs.l = self.res(regs.l, Bit::Bit0); 2 },
+			0x8D => { self.regs.l = self.res(regs.l, Bit::Bit1); 2 },
+			0x95 => { self.regs.l = self.res(regs.l, Bit::Bit2); 2 },
+			0x9D => { self.regs.l = self.res(regs.l, Bit::Bit3); 2 },
+			0xA5 => { self.regs.l = self.res(regs.l, Bit::Bit4); 2 },
+			0xAD => { self.regs.l = self.res(regs.l, Bit::Bit5); 2 },
+			0xB5 => { self.regs.l = self.res(regs.l, Bit::Bit6); 2 },
+			0xBD => { self.regs.l = self.res(regs.l, Bit::Bit7); 2 },
+			0x86 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit0)); 4 },
+			0x8E => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit1)); 4 },
+			0x96 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit2)); 4 },
+			0x9E => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit3)); 4 },
+			0xA6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit4)); 4 },
+			0xAE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit5)); 4 },
+			0xB6 => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit6)); 4 },
+			0xBE => { let n = memory.read(regs.hl()); memory.write(regs.hl(), self.res(n, Bit::Bit7)); 4 },
+			_ => panic!("Unknown Sub-Op: ${:02X} @ ${:04X} dec: {}", opcode, pc, opcode)
 		}
 	}
 
@@ -495,6 +796,7 @@ impl CPU {
 	}
 
 	/* 8-bit Rotate/Shift operations */
+
 	fn rotate_left(&mut self, n: u8, include_carry: bool, update_zero: bool) -> u8 {
 		let bit7 = n >> 7;
 		let result = match include_carry {
@@ -523,6 +825,53 @@ impl CPU {
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_flag(Flag::Zero, (result == 0 && update_zero));
 		result
+	}
+
+	fn shift_left(&mut self, n: u8) -> u8 {
+		let result = n << 1;
+		let bit7 = n >> 7;
+		self.regs.set_flag(Flag::Carry, bit7 == 1);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, result == 0);
+		result
+	}
+
+	fn shift_right(&mut self, n: u8, keep_bit7: bool) -> u8 {
+		let result = match keep_bit7 {
+			true => (n >> 1) | (n & 0x80),
+			false => n >> 1,
+		};
+		self.regs.set_flag(Flag::Carry, (n & 1) == 1);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, result == 0);
+		result
+	}
+
+	fn swap(&mut self, n: u8) -> u8 {
+		let high = n >> 4;
+		let low  = n << 4;
+		let result = low | high;
+		self.regs.set_flag(Flag::Carry, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, result == 0);
+		result
+	}
+
+	fn bit(&mut self, n: u8, bit: Bit) {
+		self.regs.set_flag(Flag::Zero, ((bit as u8) & !n) != 0);
+		self.regs.set_flag(Flag::HalfCarry, true);
+		self.regs.set_flag(Flag::Sub, false);
+	}
+
+	fn set(&mut self, n: u8, bit: Bit) -> u8 {
+		n | bit as u8
+	}
+
+	fn res(&mut self, n: u8, bit: Bit) -> u8 {
+		(!(bit as u8) & n)
 	}
 
 	/* 16-bit operations */

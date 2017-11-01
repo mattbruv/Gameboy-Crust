@@ -99,6 +99,7 @@ impl Gpu {
 		}
 		
 		// If we have finished the H-Blank period, we are on a new line
+		// LY is updated even if we are in V-blank
 		if self.scanline_cycles > HBLANK_PERIOD {
 			self.LY.add(1);
 			self.scanline_cycles = 0;

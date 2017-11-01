@@ -8,6 +8,7 @@ pub enum Flag {
 	Carry     = 0b00010000,
 }
 
+#[derive(Copy, Clone)]
 pub struct Registers {
 	// 8bit registers
 	pub a: u8,
