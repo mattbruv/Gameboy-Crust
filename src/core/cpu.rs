@@ -51,11 +51,13 @@ impl CPU {
 
 	// Perform one step of the fetch-decode-execute cycle 
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
+		
+		let pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
 		//let command = disassemble(&self.regs, &memory, opcode);
 		//println!("{}", command);
 
-		println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
+		// println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {
@@ -378,7 +380,7 @@ impl CPU {
 			0xFB => { memory.interrupt.enable();  1 }, // Enable interrupts
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
-			_ => panic!("Unknown Opcode: ${:02X} | {}", opcode, opcode)
+			_ => panic!("Unknown Opcode: ${:02X} @ ${:04X} | {}", opcode, pc, opcode)
 		}
 	}
 
@@ -531,7 +533,6 @@ impl CPU {
 	/* Call and Return Instructions */
 	fn call(&mut self, memory: &mut Interconnect, source: u16) {
 		let pc = self.regs.pc;
-		println!("PUSHING ${:02X} TO STACK", pc);
 		self.push(memory, pc);
 		self.regs.pc = source;
 	}

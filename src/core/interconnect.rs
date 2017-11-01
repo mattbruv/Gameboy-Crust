@@ -13,7 +13,7 @@ pub struct Interconnect {
 	wram: Wram,
 	oam: Oam,
 	hram: Hram,
-	gpu: Gpu,
+	pub gpu: Gpu,
 	pub interrupt: InterruptHandler,
 }
 

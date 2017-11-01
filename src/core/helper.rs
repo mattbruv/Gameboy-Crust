@@ -1,3 +1,6 @@
+use std::io::prelude::*;
+use std::fs::File;
+
 pub enum Bit {
 	Bit0 = 0b00000001,
 	Bit1 = 0b00000010,
@@ -7,6 +10,10 @@ pub enum Bit {
 	Bit5 = 0b00100000,
 	Bit6 = 0b01000000,
 	Bit7 = 0b10000000,
+}
+
+pub fn dump(name: &str, bytes: &Vec<u8>) {
+	unimplemented!();
 }
 
 pub struct MemoryRegister {
@@ -19,27 +26,37 @@ impl MemoryRegister {
 			value: data
 		}
 	}
+
 	pub fn get(&self) -> u8 {
 		self.value
 	}
+
 	pub fn set(&mut self, data: u8) {
 		self.value = data;
 	}
+
+	pub fn clear(&mut self) {
+		self.set(0x00);
+	}
+
 	pub fn set_bit(&mut self, b: Bit) {
 		self.value = self.value | b as u8;
 	}
+
 	pub fn clear_bit(&mut self, b: Bit) {
 		self.value = self.value & !(b as u8);
 	}
+
 	pub fn is_set(&self, b: Bit) -> bool {
 		self.value & b as u8 > 0
 	}
+
 	pub fn add(&mut self, data: u8) {
-		self.value.wrapping_add(data);
+		self.value = self.value.wrapping_add(data);
 	}
 
 	pub fn sub(&mut self, data: u8) {
-		self.value.wrapping_sub(data);
+		self.value = self.value.wrapping_sub(data);
 	}
 }
 
