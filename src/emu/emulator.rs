@@ -18,8 +18,8 @@ impl Emulator {
 		loop {
 			self.gameboy.step();
 
-			if self.gameboy.cpu.regs.pc == 0x29FA {
-			//	break;
+			if self.gameboy.cpu.regs.pc == 0x2A05 {
+				//break;
 			}
 		}
 

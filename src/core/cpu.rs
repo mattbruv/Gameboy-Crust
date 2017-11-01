@@ -372,6 +372,13 @@ impl CPU {
 			0xF7 => { self.rst(memory, RstVector::Rst7); 4 },
 			0xFF => { self.rst(memory, RstVector::Rst8); 4 },
 
+			0x07 => { let a = self.regs.a; self.regs.a = self.rotate_left(a, false, false); 1 },
+			0x17 => { let a = self.regs.a; self.regs.a = self.rotate_left(a, true, false); 1 },
+			0x0F => { let a = self.regs.a; self.regs.a = self.rotate_right(a, false, false); 1 },
+			0x1F => { let a = self.regs.a; self.regs.a = self.rotate_right(a, true, false); 1 },
+
+			// CPL
+			0x2F => { self.cpl(); 1 }
 			// NOP
 			0x00 => { 1 }, // easiest opcode of my life
 
@@ -481,7 +488,43 @@ impl CPU {
 		result
 	}
 
-	
+	fn cpl(&mut self) {
+		self.regs.a = !self.regs.a;
+		self.regs.set_flag(Flag::HalfCarry, true);
+		self.regs.set_flag(Flag::Sub, true);
+	}
+
+	/* 8-bit Rotate/Shift operations */
+	fn rotate_left(&mut self, n: u8, include_carry: bool, update_zero: bool) -> u8 {
+		let bit7 = n >> 7;
+		let result = match include_carry {
+			true =>  { 
+				self.regs.set_flag(Flag::Carry, (bit7 == 1)); 
+				(n << 1) | (self.regs.is_flag_set(Flag::Carry) as u8)
+			},
+			false => n.rotate_left(1), 
+		};
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0 && update_zero));
+		result
+	}
+
+	fn rotate_right(&mut self, n: u8, include_carry: bool, update_zero: bool) -> u8 {
+		let bit1 = n & 1;
+		let result = match include_carry {
+			true =>  { 
+				self.regs.set_flag(Flag::Carry, (bit1 == 1)); 
+				(n >> 1) | ((self.regs.is_flag_set(Flag::Carry) as u8) << 7)
+			},
+			false => n.rotate_right(1), 
+		};
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::Zero, (result == 0 && update_zero));
+		result
+	}
+
 	/* 16-bit operations */
 
 	fn add_hl(&mut self, n: u16) {
@@ -583,10 +626,9 @@ impl CPU {
 		self.call(memory, source);
 	}
 
-	pub fn debug(&self) {
-		//self.regs.pc = 0x8003;
-		//self.regs.set_flag(Flag::Zero, true);
-
+	pub fn debug(&mut self) {
+		// self.regs.set_bc(0x8500);
+		// self.regs.set_flag(Flag::Carry, false);
 		println!("{}", self.regs);
 	}
 }
