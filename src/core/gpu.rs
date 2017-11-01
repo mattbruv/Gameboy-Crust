@@ -1,4 +1,9 @@
 use core::helper::*;
+use core::sink::*;
+use core::memory_map::*;
+
+const VRAM_SIZE: usize = 8192; // 8Kb Bank
+const OAM_SIZE: usize = 160; // 160byte OAM memory
 
 const LCD_WIDTH: usize  = 160;
 const LCD_HEIGHT: usize = 144;
@@ -30,6 +35,10 @@ enum StatusInterrupt {
 }
 
 pub struct Gpu {
+	// Memory
+	Vram: Vec<u8>,
+	Oam:  Vec<u8>,
+	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
 	pub LYC: MemoryRegister,
@@ -41,6 +50,8 @@ pub struct Gpu {
 impl Gpu {
 	pub fn new() -> Gpu {
 		Gpu {
+			Vram: vec![0; VRAM_SIZE],
+			Oam:  vec![0; OAM_SIZE],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -136,5 +147,35 @@ impl Gpu {
 			StatusInterrupt::Coincidence => {},
 		}
 
+	}
+
+	pub fn read(&self, address: u16) -> u8 {
+		match address {
+			VRAM_START ... VRAM_END => {
+				self.Vram[(address - VRAM_START) as usize]
+			},
+			OAM_START  ... OAM_END  => {
+				self.Oam[(address - OAM_START) as usize]
+			},
+			_ => unreachable!(),
+		}
+	}
+
+	pub fn write(&mut self, address: u16, data: u8) {
+		match address {
+			VRAM_START ... VRAM_END => {
+				self.Vram[(address - VRAM_START) as usize] = data;
+			},
+			OAM_START ... OAM_END => {
+				self.Oam[(address - OAM_START) as usize] = data;
+			},
+			_ => unreachable!(),
+		}
+	}
+
+	pub fn dump(&self) {
+		println!("DUMPING VRAM");
+		dump("vram.bin", &self.Vram);
+		dump("oam.bin", &self.Oam);
 	}
 }

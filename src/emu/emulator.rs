@@ -15,14 +15,16 @@ impl Emulator {
 	}
 
 	pub fn run(&mut self) {
-		loop {
+		for i in 1..20000000 {
+		//loop {
 			self.gameboy.step();
 
-			if self.gameboy.cpu.regs.pc == 0x2A05 {
+			if self.gameboy.cpu.regs.pc == 0x282A {
 				//break;
 			}
 		}
 
+		self.gameboy.interconnect.gpu.dump();
 		self.gameboy.cpu.debug();
 	}
 }

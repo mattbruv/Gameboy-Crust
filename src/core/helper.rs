@@ -13,7 +13,10 @@ pub enum Bit {
 }
 
 pub fn dump(name: &str, bytes: &Vec<u8>) {
-	unimplemented!();
+	let mut dir = "dumps/".to_owned();
+	dir.push_str(name);
+	let mut file = File::create(dir).unwrap();
+	file.write_all(bytes);
 }
 
 pub struct MemoryRegister {

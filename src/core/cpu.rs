@@ -57,7 +57,7 @@ impl CPU {
 		//let command = disassemble(&self.regs, &memory, opcode);
 		//println!("{}", command);
 
-		// println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
+		//println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {

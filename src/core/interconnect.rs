@@ -1,7 +1,5 @@
 use rom::*;
-use vram::*;
 use wram::*;
-use oam::*;
 use hram::*;
 use gpu::*;
 use interrupt::*;
@@ -9,9 +7,7 @@ use memory_map::*;
 
 pub struct Interconnect {
 	rom: Rom,
-	vram: Vram,
 	wram: Wram,
-	oam: Oam,
 	hram: Hram,
 	pub gpu: Gpu,
 	pub interrupt: InterruptHandler,
@@ -21,11 +17,9 @@ impl Interconnect {
 	pub fn new(_rom: Rom) -> Interconnect {
 		Interconnect {
 			rom: _rom,
-			vram: Vram::new(),
-			wram: Wram::new(),
-			oam: Oam::new(),
-			hram: Hram::new(),
 			gpu: Gpu::new(),
+			wram: Wram::new(),
+			hram: Hram::new(),
 			interrupt: InterruptHandler::new(),
 		}
 	}
@@ -40,11 +34,11 @@ impl Interconnect {
 		// No specific register, read general data
 		match address {
 			ROM_START  ... ROM_END  => self.rom.read(address),
-			VRAM_START ... VRAM_END => self.vram.read(address - VRAM_START),
+			VRAM_START ... VRAM_END => self.gpu.read(address),
 			ERAM_START ... ERAM_END => panic!("Read from ERAM not implemented"),
 			WRAM_START ... WRAM_END => self.wram.read(address - WRAM_START),
 			ECHO_START ... ECHO_END => self.wram.read(address - ECHO_START),
-			OAM_START  ... OAM_END  => self.oam.read(address - OAM_START),
+			OAM_START  ... OAM_END  => self.gpu.read(address),
 			HRAM_START ... HRAM_END => self.hram.read(address - HRAM_START),
 			_ => panic!("Invalid Read")
 		}
@@ -54,7 +48,7 @@ impl Interconnect {
 		//println!("WRITE ${:2X} TO ${:4X}", data, address);
 		match address {
 			ROM_START  ... ROM_END  => self.rom.write(address, data),
-			VRAM_START ... VRAM_END => self.vram.write(address - VRAM_START, data),
+			VRAM_START ... VRAM_END => self.gpu.write(address, data),
 			ERAM_START ... ERAM_END => panic!("Write to ERAM not implemented"),
 			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
 			ECHO_START ... ECHO_END => {
@@ -62,7 +56,7 @@ impl Interconnect {
 				// self.wram.write(address - ECHO_START, data)
 				panic!("Attempt to write to ECHO RAM");
 			},
-			OAM_START  ... OAM_END  => self.oam.write(address - OAM_START, data),
+			OAM_START  ... OAM_END  => self.gpu.write(address, data),
 			HRAM_START ... HRAM_END => self.hram.write(address - HRAM_START, data),
 			_ => panic!("Invalid Write")
 		}
