@@ -15,7 +15,7 @@ impl Emulator {
 	}
 
 	pub fn run(&mut self) {
-		//for i in 1..20000000 {
+		//for i in 1..2000000 {
 		loop {
 			self.gameboy.step();
 
@@ -24,8 +24,8 @@ impl Emulator {
 			}
 		}
 
+
 		//self.gameboy.interconnect.gpu.dump();
 		self.gameboy.cpu.debug();
-		self.gameboy.interconnect.gpu.get_tile_map();
 	}
 }

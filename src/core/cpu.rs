@@ -49,15 +49,15 @@ impl CPU {
 		combine!(high, low)
 	}
 
-	// Perform one step of the fetch-decode-execute cycle 
+	// Perform one step of the fetch-decode-execute cycle
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
-		
-		let pc = self.regs.pc;
+
+		let old_pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
 		//let command = disassemble(&self.regs, &memory, opcode);
 		//println!("{}", command);
 
-		//println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
+		println!("PC: 0x{:04X}: ${:02X}", self.regs.pc - 1, opcode);
 
 		// decodes/excecutes each operation and returns cycles taken
 		match opcode {
@@ -145,7 +145,7 @@ impl CPU {
 			// LD A, (C)
 			0xF2 => { self.regs.a = memory.read((0xFF00 as u16).wrapping_add(self.regs.c as u16)); 2 },
 			// LD (C), A
-			0xE2 => { memory.write((0xFF00 as u16).wrapping_add(self.regs.c as u16), self.regs.a); 2 }, 
+			0xE2 => { memory.write((0xFF00 as u16).wrapping_add(self.regs.c as u16), self.regs.a); 2 },
 			// LD A, (n)
 			0xF0 => { self.regs.a = memory.read((0xFF00 as u16).wrapping_add(self.next_byte(memory) as u16)); 3 },
 			// LD (n), A
@@ -154,7 +154,7 @@ impl CPU {
 			0xFA => { self.regs.a = memory.read(self.next_pointer(memory)); 4 },
 			// LD (nn), A
 			0xEA => { let addr = self.next_pointer(memory); memory.write(addr, self.regs.a); 4 },
-			// LD A (HLI)			
+			// LD A (HLI)
 			0x2A => { self.regs.a = memory.read(self.regs.hl()); self.regs.hli(); 2 },
 			// LD A (HLD)
 			0x3A => { self.regs.a = memory.read(self.regs.hl()); self.regs.hld(); 2 },
@@ -214,7 +214,7 @@ impl CPU {
 			0x8A => { let r = self.regs.d; self.add_u8(r, true); 1 },
 			0x8B => { let r = self.regs.e; self.add_u8(r, true); 1 },
 			0x8C => { let r = self.regs.h; self.add_u8(r, true); 1 },
-			0x8D => { let r = self.regs.l; self.add_u8(r, true); 1 },			
+			0x8D => { let r = self.regs.l; self.add_u8(r, true); 1 },
 			// ADC A, n
 			0xCE => { let n = self.next_byte(memory); self.add_u8(n, true); 2 },
 			// ADC A, (HL)
@@ -238,7 +238,7 @@ impl CPU {
 			0x9A => { let r = self.regs.d; self.sub_u8(r, true); 1 },
 			0x9B => { let r = self.regs.e; self.sub_u8(r, true); 1 },
 			0x9C => { let r = self.regs.h; self.sub_u8(r, true); 1 },
-			0x9D => { let r = self.regs.l; self.sub_u8(r, true); 1 },			
+			0x9D => { let r = self.regs.l; self.sub_u8(r, true); 1 },
 			// SBC A, n
 			0xDE => { let n = self.next_byte(memory); self.sub_u8(n, true); 2 },
 			// SBC A, (HL)
@@ -312,21 +312,21 @@ impl CPU {
 			// DEC (HL)
 			0x35 => { let n = memory.read(self.regs.hl()); memory.write(self.regs.hl(), self.dec_u8(n)); 3 },
 			// ADD HL, rr
-			0x09 => { let rr = self.regs.bc(); self.add_hl(rr); 2 }, 
-			0x19 => { let rr = self.regs.de(); self.add_hl(rr); 2 }, 
-			0x29 => { let rr = self.regs.hl(); self.add_hl(rr); 2 }, 
+			0x09 => { let rr = self.regs.bc(); self.add_hl(rr); 2 },
+			0x19 => { let rr = self.regs.de(); self.add_hl(rr); 2 },
+			0x29 => { let rr = self.regs.hl(); self.add_hl(rr); 2 },
 			0x39 => { let rr = self.regs.sp; self.add_hl(rr); 2 },
 			// ADD SP, e
-			0xE8 => { unimplemented!(); }, 
+			0xE8 => { unimplemented!(); },
 			// INC ss (no flags changed here)
-			0x03 => { let rr = self.regs.bc().wrapping_add(1); self.regs.set_bc(rr); 2 }, 
-			0x13 => { let rr = self.regs.de().wrapping_add(1); self.regs.set_de(rr); 2 }, 
-			0x23 => { let rr = self.regs.hl().wrapping_add(1); self.regs.set_hl(rr); 2 }, 
+			0x03 => { let rr = self.regs.bc().wrapping_add(1); self.regs.set_bc(rr); 2 },
+			0x13 => { let rr = self.regs.de().wrapping_add(1); self.regs.set_de(rr); 2 },
+			0x23 => { let rr = self.regs.hl().wrapping_add(1); self.regs.set_hl(rr); 2 },
 			0x33 => { let rr = self.regs.sp.wrapping_add(1); self.regs.sp = rr; 2 },
 			// DEC ss (no flags changed here)
-			0x0B => { let rr = self.regs.bc().wrapping_sub(1); self.regs.set_bc(rr); 2 }, 
-			0x1B => { let rr = self.regs.de().wrapping_sub(1); self.regs.set_de(rr); 2 }, 
-			0x2B => { let rr = self.regs.hl().wrapping_sub(1); self.regs.set_hl(rr); 2 }, 
+			0x0B => { let rr = self.regs.bc().wrapping_sub(1); self.regs.set_bc(rr); 2 },
+			0x1B => { let rr = self.regs.de().wrapping_sub(1); self.regs.set_de(rr); 2 },
+			0x2B => { let rr = self.regs.hl().wrapping_sub(1); self.regs.set_hl(rr); 2 },
 			0x3B => { let rr = self.regs.sp.wrapping_sub(1); self.regs.sp = rr; 2 },
 
 			// JP nn
@@ -336,7 +336,7 @@ impl CPU {
 			0xCA => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::Zero) },
 			0xD2 => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::NotCarry) },
 			0xDA => { let nn = self.next_pointer(memory); self.jump_if(nn, Condition::Carry) },
-			
+
 			// JR e
 			0x18 => { let e = self.next_byte(memory) as i8; self.jump_rel(e); 3 },
 			// JR cc, e
@@ -388,7 +388,7 @@ impl CPU {
 			0xFB => { memory.interrupt.enable();  1 }, // Enable interrupts
 
 			0xC3 => { self.regs.pc = self.next_pointer(memory); 4 },
-			_ => panic!("Unknown Opcode: ${:02X} @ ${:04X} dec: {}", opcode, pc, opcode)
+			_ => panic!("Unknown Opcode: ${:02X} @ ${:04X} dec: {}", opcode, old_pc, opcode)
 		}
 	}
 
@@ -398,7 +398,7 @@ impl CPU {
 		let pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
 		let regs = self.regs;
-		
+
 		match opcode {
 			// Rotate Left
 			0x07 => { self.regs.a = self.rotate_left(regs.a, false, true); 2 },
@@ -408,9 +408,9 @@ impl CPU {
 			0x03 => { self.regs.e = self.rotate_left(regs.e, false, true); 2 },
 			0x04 => { self.regs.h = self.rotate_left(regs.h, false, true); 2 },
 			0x05 => { self.regs.l = self.rotate_left(regs.l, false, true); 2 },
-			0x06 => { 
+			0x06 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_left(n, false, false)); 
+				memory.write(regs.hl(), self.rotate_left(n, false, false));
 			4 },
 			0x17 => { self.regs.a = self.rotate_left(regs.a, true, true); 2 },
 			0x10 => { self.regs.b = self.rotate_left(regs.b, true, true); 2 },
@@ -419,9 +419,9 @@ impl CPU {
 			0x13 => { self.regs.e = self.rotate_left(regs.e, true, true); 2 },
 			0x14 => { self.regs.h = self.rotate_left(regs.h, true, true); 2 },
 			0x15 => { self.regs.l = self.rotate_left(regs.l, true, true); 2 },
-			0x16 => { 
+			0x16 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_left(n, true, false)); 
+				memory.write(regs.hl(), self.rotate_left(n, true, false));
 			4 },
 			// Rotate Right
 			0x0F => { self.regs.a = self.rotate_right(regs.a, false, true); 2 },
@@ -431,9 +431,9 @@ impl CPU {
 			0x0B => { self.regs.e = self.rotate_right(regs.e, false, true); 2 },
 			0x0C => { self.regs.h = self.rotate_right(regs.h, false, true); 2 },
 			0x0D => { self.regs.l = self.rotate_right(regs.l, false, true); 2 },
-			0x0E => { 
+			0x0E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_right(n, false, false)); 
+				memory.write(regs.hl(), self.rotate_right(n, false, false));
 			4 },
 			0x1F => { self.regs.a = self.rotate_right(regs.a, true, true); 2 },
 			0x18 => { self.regs.b = self.rotate_right(regs.b, true, true); 2 },
@@ -442,9 +442,9 @@ impl CPU {
 			0x1B => { self.regs.e = self.rotate_right(regs.e, true, true); 2 },
 			0x1C => { self.regs.h = self.rotate_right(regs.h, true, true); 2 },
 			0x1D => { self.regs.l = self.rotate_right(regs.l, true, true); 2 },
-			0x1E => { 
+			0x1E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_right(n, true, false)); 
+				memory.write(regs.hl(), self.rotate_right(n, true, false));
 			4 },
 			// Shift Left
 			0x27 => { self.regs.a = self.shift_left(regs.a); 2 },
@@ -454,9 +454,9 @@ impl CPU {
 			0x23 => { self.regs.e = self.shift_left(regs.e); 2 },
 			0x24 => { self.regs.h = self.shift_left(regs.h); 2 },
 			0x25 => { self.regs.l = self.shift_left(regs.l); 2 },
-			0x26 => { 
+			0x26 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.shift_left(n)); 
+				memory.write(regs.hl(), self.shift_left(n));
 			4 },
 			// Shift Right
 			0x2F => { self.regs.a = self.shift_right(regs.a, true); 2 },
@@ -466,9 +466,9 @@ impl CPU {
 			0x2B => { self.regs.e = self.shift_right(regs.e, true); 2 },
 			0x2C => { self.regs.h = self.shift_right(regs.h, true); 2 },
 			0x2D => { self.regs.l = self.shift_right(regs.l, true); 2 },
-			0x2E => { 
+			0x2E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.shift_right(n, true)); 
+				memory.write(regs.hl(), self.shift_right(n, true));
 			4 },
 			0x3F => { self.regs.a = self.shift_right(regs.a, false); 2 },
 			0x38 => { self.regs.b = self.shift_right(regs.b, false); 2 },
@@ -477,9 +477,9 @@ impl CPU {
 			0x3B => { self.regs.e = self.shift_right(regs.e, false); 2 },
 			0x3C => { self.regs.h = self.shift_right(regs.h, false); 2 },
 			0x3D => { self.regs.l = self.shift_right(regs.l, false); 2 },
-			0x3E => { 
+			0x3E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.shift_right(n, false)); 
+				memory.write(regs.hl(), self.shift_right(n, false));
 			4 },
 			// Swap
 			0x37 => { self.regs.a = self.swap(regs.a); 2 },
@@ -489,9 +489,9 @@ impl CPU {
 			0x33 => { self.regs.e = self.swap(regs.e); 2 },
 			0x34 => { self.regs.h = self.swap(regs.h); 2 },
 			0x35 => { self.regs.l = self.swap(regs.l); 2 },
-			0x36 => { 
+			0x36 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.swap(n)); 
+				memory.write(regs.hl(), self.swap(n));
 			4 },
 			// Bit
 			0x47 => { self.bit(regs.a, Bit::Bit0); 2 },
@@ -800,11 +800,11 @@ impl CPU {
 	fn rotate_left(&mut self, n: u8, include_carry: bool, update_zero: bool) -> u8 {
 		let bit7 = n >> 7;
 		let result = match include_carry {
-			true =>  { 
-				self.regs.set_flag(Flag::Carry, (bit7 == 1)); 
+			true =>  {
+				self.regs.set_flag(Flag::Carry, (bit7 == 1));
 				(n << 1) | (self.regs.is_flag_set(Flag::Carry) as u8)
 			},
-			false => n.rotate_left(1), 
+			false => n.rotate_left(1),
 		};
 		self.regs.set_flag(Flag::HalfCarry, false);
 		self.regs.set_flag(Flag::Sub, false);
@@ -815,11 +815,11 @@ impl CPU {
 	fn rotate_right(&mut self, n: u8, include_carry: bool, update_zero: bool) -> u8 {
 		let bit1 = n & 1;
 		let result = match include_carry {
-			true =>  { 
-				self.regs.set_flag(Flag::Carry, (bit1 == 1)); 
+			true =>  {
+				self.regs.set_flag(Flag::Carry, (bit1 == 1));
 				(n >> 1) | ((self.regs.is_flag_set(Flag::Carry) as u8) << 7)
 			},
-			false => n.rotate_right(1), 
+			false => n.rotate_right(1),
 		};
 		self.regs.set_flag(Flag::HalfCarry, false);
 		self.regs.set_flag(Flag::Sub, false);
@@ -946,7 +946,7 @@ impl CPU {
 			}, _ => unreachable!()
 		}
 	}
-	
+
 	fn ret(&mut self, memory: &mut Interconnect) {
 		let pc = self.pop(memory);
 		self.regs.pc = pc;
@@ -971,7 +971,7 @@ impl CPU {
 	}
 
 	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
-		let source = vector as u16; 
+		let source = vector as u16;
 		self.call(memory, source);
 	}
 

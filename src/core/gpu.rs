@@ -34,36 +34,17 @@ enum StatusInterrupt {
 	Coincidence,
 }
 
-// Cache Entry for a tile (8x8 pixels)
-// Array value is the pixels palette color
-#[derive(Copy, Clone)]
-struct TileEntry {
-	dirty: bool,
-	pixels: [u8; 64],
-}
-
-impl TileEntry {
-	pub fn new() -> TileEntry {
-		TileEntry {
-			dirty: true,
-			pixels: [0; 64],
-		}
-	}
-}
-
 pub struct Gpu {
 	// Memory
 	Vram: Vec<u8>,
 	Oam:  Vec<u8>,
-	// Video Cache
-	tile_cache: Vec<TileEntry>,
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
 	pub LYC: MemoryRegister,
 	pub LY: MemoryRegister,
 	scanline_cycles: usize,
-	frame_cycles: usize, 
+	frame_cycles: usize,
 }
 
 impl Gpu {
@@ -71,7 +52,6 @@ impl Gpu {
 		Gpu {
 			Vram: vec![0; VRAM_SIZE],
 			Oam:  vec![0; OAM_SIZE],
-			tile_cache: vec![TileEntry::new(); 192],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -79,31 +59,6 @@ impl Gpu {
 			scanline_cycles: 0,
 			frame_cycles: 0,
 		}
-	}
-
-	fn update_tile(&mut self, id: u8) {
-
-	}
-
-	// Returns a renderable 128x192px view of the tilemap
-	pub fn get_tile_map(&self) -> Vec<u8> {
-		let tile_map = vec![0; 128 * 192];
-		let mut index = 0;
-
-		for tile in self.tile_cache.iter() {
-			for y in 0..8 {
-				for x in 0..8 {
-					let row = index / 16;
-					let col = index % 16;
-					let vec_x = x;
-					let vec_y = y;
-					println!("ID: {}, x: {}, y: {}, ROW: {}, COL: {}", index, vec_x, vec_y, row, col);
-				}
-			}
-			index += 1;
-		}
-
-		tile_map
 	}
 
 	pub fn cycles(&mut self, cycles: usize) {
@@ -138,12 +93,12 @@ impl Gpu {
 					if old_mode != StatusMode::Oam {
 						self.set_mode(StatusMode::Oam);
 					}
-				}, 
+				},
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
 					if old_mode != StatusMode::Transfer {
 						self.set_mode(StatusMode::Transfer);
 					}
-				}, 
+				},
 				TRANSFER_PERIOD ... HBLANK_PERIOD => { // OAM
 					// We have just entered H-Blank
 					if old_mode != StatusMode::HBlank {
@@ -153,7 +108,7 @@ impl Gpu {
 				_ => {},
 			}
 		}
-		
+
 		// If we have finished the H-Blank period, we are on a new line
 		// LY is updated even if we are in V-blank
 		if self.scanline_cycles > HBLANK_PERIOD {
@@ -180,7 +135,7 @@ impl Gpu {
 	}
 
 	// sets the interrupt type on the status register
-	// so programmers can check the reason the machine interrupted  
+	// so programmers can check the reason the machine interrupted
 	fn set_interrupt(&mut self, mode: StatusInterrupt, value: bool) {
 
 		let stat = self.STAT.get();
