@@ -15,16 +15,17 @@ impl Emulator {
 	}
 
 	pub fn run(&mut self) {
-		for i in 1..20000000 {
-		//loop {
+		//for i in 1..20000000 {
+		loop {
 			self.gameboy.step();
 
 			if self.gameboy.cpu.regs.pc == 0x282A {
-				//break;
+				break;
 			}
 		}
 
-		self.gameboy.interconnect.gpu.dump();
+		//self.gameboy.interconnect.gpu.dump();
 		self.gameboy.cpu.debug();
+		self.gameboy.interconnect.gpu.get_tile_map();
 	}
 }

@@ -34,10 +34,29 @@ enum StatusInterrupt {
 	Coincidence,
 }
 
+// Cache Entry for a tile (8x8 pixels)
+// Array value is the pixels palette color
+#[derive(Copy, Clone)]
+struct TileEntry {
+	dirty: bool,
+	pixels: [u8; 64],
+}
+
+impl TileEntry {
+	pub fn new() -> TileEntry {
+		TileEntry {
+			dirty: true,
+			pixels: [0; 64],
+		}
+	}
+}
+
 pub struct Gpu {
 	// Memory
 	Vram: Vec<u8>,
 	Oam:  Vec<u8>,
+	// Video Cache
+	tile_cache: Vec<TileEntry>,
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
@@ -52,6 +71,7 @@ impl Gpu {
 		Gpu {
 			Vram: vec![0; VRAM_SIZE],
 			Oam:  vec![0; OAM_SIZE],
+			tile_cache: vec![TileEntry::new(); 192],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -59,6 +79,31 @@ impl Gpu {
 			scanline_cycles: 0,
 			frame_cycles: 0,
 		}
+	}
+
+	fn update_tile(&mut self, id: u8) {
+
+	}
+
+	// Returns a renderable 128x192px view of the tilemap
+	pub fn get_tile_map(&self) -> Vec<u8> {
+		let tile_map = vec![0; 128 * 192];
+		let mut index = 0;
+
+		for tile in self.tile_cache.iter() {
+			for y in 0..8 {
+				for x in 0..8 {
+					let row = index / 16;
+					let col = index % 16;
+					let vec_x = x;
+					let vec_y = y;
+					println!("ID: {}, x: {}, y: {}, ROW: {}, COL: {}", index, vec_x, vec_y, row, col);
+				}
+			}
+			index += 1;
+		}
+
+		tile_map
 	}
 
 	pub fn cycles(&mut self, cycles: usize) {
@@ -141,7 +186,7 @@ impl Gpu {
 		let stat = self.STAT.get();
 
 		match mode {
-			StatusInterrupt::HBlank => {  },
+			StatusInterrupt::HBlank => {},
 			StatusInterrupt::VBlank => {},
 			StatusInterrupt::Oam => {},
 			StatusInterrupt::Coincidence => {},
@@ -171,6 +216,11 @@ impl Gpu {
 			},
 			_ => unreachable!(),
 		}
+	}
+
+	pub fn debug(&mut self) {
+		//self.tile_cache[1].pixels[8] = 3;
+		//println!("{:?}", self.tile_cache);
 	}
 
 	pub fn dump(&self) {
