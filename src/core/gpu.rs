@@ -34,10 +34,28 @@ enum StatusInterrupt {
 	Coincidence,
 }
 
+// Entry for the tile cache
+#[derive(Clone)]
+struct TileEntry {
+	dirty: bool,
+	pixels: Vec<u8>,
+}
+
+impl TileEntry {
+	pub fn new() -> TileEntry {
+		TileEntry {
+			dirty: true,
+			pixels: vec![0; 64],
+		}
+	}
+}
+
 pub struct Gpu {
 	// Memory
 	Vram: Vec<u8>,
 	Oam:  Vec<u8>,
+	// Tile Cache
+	tile_cache: Vec<TileEntry>,
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
@@ -52,6 +70,7 @@ impl Gpu {
 		Gpu {
 			Vram: vec![0; VRAM_SIZE],
 			Oam:  vec![0; OAM_SIZE],
+			tile_cache: vec![TileEntry::new(); 384],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -61,7 +80,17 @@ impl Gpu {
 		}
 	}
 
-	pub fn cycles(&mut self, cycles: usize) {
+	// Returns a 128x192px display for entire tile cache
+	// Tile cache is 384 tiles, entire VRAM is turned into a tile cache
+	// Even though we only use certain areas, it makes it easier to cache
+	// Entire VRAM as if all data were tiles.
+	pub fn get_tiles(&self) -> Vec<u32> {
+		let display = vec![0xFF00FF; 128 * 192];
+
+		display
+	}
+
+	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
 
 		//println!("{}", self.STAT.get());
 
@@ -78,12 +107,13 @@ impl Gpu {
 				self.set_mode(StatusMode::VBlank);
 			}
 
-			// we have completed vblank period, reset everything
+			// we have completed vblank period, reset everything, update sink
 			if self.frame_cycles > VBLANK_PERIOD {
 				self.scanline_cycles = 0;
 				self.frame_cycles = 0;
 				self.LY.clear();
 				self.set_mode(StatusMode::Oam);
+				video_sink.append(vec![0; 1]);
 			}
 
 		} else {

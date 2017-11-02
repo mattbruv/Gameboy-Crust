@@ -1,3 +1,5 @@
+extern crate minifb;
+
 mod core;
 mod emu;
 

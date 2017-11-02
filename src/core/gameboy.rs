@@ -1,6 +1,7 @@
 use core::cpu::*;
 use core::rom::*;
 use core::interconnect::*;
+use core::sink::*;
 
 pub struct GameBoy {
 	pub interconnect: Interconnect,
@@ -16,9 +17,9 @@ impl GameBoy {
 	}
 
 	// Steps the entire machine through the next instruction and returns cycles taken
-	pub fn step(&mut self) -> usize {
+	pub fn step(&mut self, video_sink: &mut VideoSink) -> usize {
 		let cycles = self.cpu.step(&mut self.interconnect);
-		self.interconnect.cycles(cycles);
+		self.interconnect.cycles(cycles, video_sink);
 		cycles
 	}
 }
