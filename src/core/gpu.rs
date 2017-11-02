@@ -2,6 +2,8 @@ use core::helper::*;
 use core::sink::*;
 use core::memory_map::*;
 
+const TILE_RAM_END: u16 = 0x97FF;
+
 const VRAM_SIZE: usize = 8192; // 8Kb Bank
 const OAM_SIZE: usize = 160; // 160byte OAM memory
 
@@ -35,10 +37,10 @@ enum StatusInterrupt {
 }
 
 // Entry for the tile cache
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TileEntry {
 	dirty: bool,
-	pixels: Vec<u8>,
+	pixels: Vec<u32>,
 }
 
 impl TileEntry {
@@ -55,7 +57,7 @@ pub struct Gpu {
 	Vram: Vec<u8>,
 	Oam:  Vec<u8>,
 	// Tile Cache
-	tile_cache: Vec<TileEntry>,
+	tile_cache: Vec<TileEntry>, // cache rules everything around me
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
@@ -80,19 +82,78 @@ impl Gpu {
 		}
 	}
 
-	// Returns a 128x192px display for entire tile cache
+	// Returns a 128x192px display for entire tile cache for debugging
 	// Tile cache is 384 tiles, entire VRAM is turned into a tile cache
 	// Even though we only use certain areas, it makes it easier to cache
 	// Entire VRAM as if all data were tiles.
-	pub fn get_tiles(&self) -> Vec<u32> {
-		let display = vec![0xFF00FF; 128 * 192];
+	pub fn get_tiles(&mut self) -> Vec<u32> {
+		let width = 128;
+		let height = 192;
+		let mut display = vec![0xFF00FF; width * height];
+		// Loop entire VRAM as tiles
+		for index in 0..384 {
 
+			if self.tile_cache[index].dirty {
+				self.refresh_tile(index);
+			}
+
+			let entry = &self.tile_cache[index];
+
+			for y in 0..8 {
+				for x in 0..8 {
+					let color = entry.pixels[(y * 8) + x];
+					let column = index % 16;
+					let row = index / 16;
+					let width_offset = (column * 8) + x;
+					let height_offset = ((row * 8) + y) * width;
+					let vec_offset = width_offset + height_offset;
+					display[vec_offset] = color;
+				}
+			}
+		}
 		display
 	}
 
-	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
+	// Updates the tile cache with the current data in VRAM for that tile
+	pub fn refresh_tile(&mut self, id: usize) {
+		//let entry = &mut self.tile_cache[id];
 
-		//println!("{}", self.STAT.get());
+		let offset = VRAM_START + (id * 16) as u16;
+		//println!("OFFSET ${:04X}", offset);
+
+		let mut tile = vec![0; 64];
+
+		for y in 0..8 {
+			let top = &self.read(offset + (y * 2));
+			let bot = &self.read(offset + (y * 2) + 1);
+			let mut x: i8 = 7;
+			// Loop through all the pixels in a y value
+			while x >= 0 {
+				let x_flip = (0 - x) * -1;
+				// 7
+				let top_bit = (top >> x) & 1;
+				let bot_bit = (bot >> x) & 1;
+
+				let combined = (top_bit << 1) | bot_bit;
+
+				let color = match combined {
+					3 => 0,
+					2 => 0x990000,
+					1 => 0x330000,
+					_ => 0xFF0000,
+				};
+
+				tile[((y * 8) + x as u16) as usize] = color;
+
+				x -= 1;
+			}
+		}
+
+		self.tile_cache[id].dirty = false;
+		self.tile_cache[id].pixels = tile;
+	}
+
+	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
 
 		let old_mode = self.get_mode();
 		let mut new_mode: StatusMode;
@@ -194,7 +255,14 @@ impl Gpu {
 	pub fn write(&mut self, address: u16, data: u8) {
 		match address {
 			VRAM_START ... VRAM_END => {
-				self.Vram[(address - VRAM_START) as usize] = data;
+				let index = address - VRAM_START;
+				self.Vram[index as usize] = data;
+				// Mark this data as dirty so the tile cache updates
+
+				if address <= TILE_RAM_END {
+					let tile_id = index / 16;
+					self.tile_cache[tile_id as usize].dirty = true;
+				}
 			},
 			OAM_START ... OAM_END => {
 				self.Oam[(address - OAM_START) as usize] = data;

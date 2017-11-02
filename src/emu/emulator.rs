@@ -44,9 +44,10 @@ impl Emulator {
 			if let Some(frame) = video_sink.consume() {
 				let buffer = self.gameboy.interconnect.gpu.get_tiles();
 				self.tile_viewer.update_with_buffer(&buffer);
+				self.gameboy.interconnect.gpu.refresh_tile(0);
 			}
 
-			thread::sleep(time::Duration::from_millis(16));
+			thread::sleep(time::Duration::from_millis(10));
 		}
 
 		//self.gameboy.interconnect.gpu.dump();
