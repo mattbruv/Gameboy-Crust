@@ -2,6 +2,9 @@ use core::helper::*;
 use core::sink::*;
 use core::memory_map::*;
 
+const FRAME_WIDTH: usize = 160;
+const FRAME_HEIGHT: usize = 144;
+
 const TILE_RAM_END: u16 = 0x97FF;
 
 const VRAM_SIZE: usize = 8192; // 8Kb Bank
@@ -58,6 +61,8 @@ pub struct Gpu {
 	Oam:  Vec<u8>,
 	// Tile Cache
 	tile_cache: Vec<TileEntry>, // cache rules everything around me
+	// Frame Buffer
+	frame_buffer: Vec<u32>,
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
@@ -76,6 +81,7 @@ impl Gpu {
 			Vram: vec![0; VRAM_SIZE],
 			Oam:  vec![0; OAM_SIZE],
 			tile_cache: vec![TileEntry::new(); 384],
+			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -192,7 +198,7 @@ impl Gpu {
 				self.frame_cycles = 0;
 				self.LY.clear();
 				self.set_mode(StatusMode::Oam);
-				video_sink.append(vec![0; 1]);
+				video_sink.append(self.frame_buffer.clone());
 			}
 
 		} else {

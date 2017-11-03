@@ -74,6 +74,7 @@ impl Interconnect {
 	// Intercept and re-route reads to memory registers to their actual location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
+			P1 => { Some(0x0F) },
 			IE => Some(self.interrupt.IE.get()),
 			IF => Some(self.interrupt.IF.get()),
 			LCDC => Some(self.gpu.LCDC.get()),
