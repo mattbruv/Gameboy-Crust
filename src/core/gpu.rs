@@ -63,6 +63,9 @@ pub struct Gpu {
 	pub STAT: MemoryRegister,
 	pub LYC: MemoryRegister,
 	pub LY: MemoryRegister,
+	pub BGP: MemoryRegister,
+	pub OBP0: MemoryRegister,
+	pub OBP1: MemoryRegister,
 	scanline_cycles: usize,
 	frame_cycles: usize,
 }
@@ -77,9 +80,31 @@ impl Gpu {
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
 			LY: MemoryRegister::new(0x00),
+			BGP: MemoryRegister::new(0x00),
+			OBP0: MemoryRegister::new(0x00),
+			OBP1: MemoryRegister::new(0x00),
 			scanline_cycles: 0,
 			frame_cycles: 0,
 		}
+	}
+
+	// Converts a 0-3 shade to the appropriate 32bit palette color
+	fn colorize(&mut self, shade: u8) -> u32 {
+		let palette = [
+			0xFFFFFF, // 0 White
+			0x999999, // 1 Light Gray
+			0x333333, // 2 Dark Gray
+			0x000000, // 3 Black
+		];
+		let pal_data = self.BGP.get();
+		let real_shade = match shade {
+			0 =>  pal_data & 0b00000011,
+			1 => (pal_data & 0b00001100) >> 2,
+			2 => (pal_data & 0b00110000) >> 4,
+			3 => (pal_data & 0b11000000) >> 6,
+			_ => panic!("Invalid Palette Shade!")
+		};
+		palette[real_shade as usize]
 	}
 
 	// Returns a 128x192px display for entire tile cache for debugging
@@ -124,26 +149,19 @@ impl Gpu {
 		let mut tile = vec![0; 64];
 
 		for y in 0..8 {
-			let top = &self.read(offset + (y * 2));
-			let bot = &self.read(offset + (y * 2) + 1);
+			let low_byte = &self.read(offset + (y * 2));
+			let high_byte = &self.read(offset + (y * 2) + 1);
 			let mut x: i8 = 7;
 			// Loop through all the pixels in a y value
 			while x >= 0 {
-				let x_flip = (0 - x) * -1;
+				let x_flip = (x - 7) * -1;
 				// 7
-				let top_bit = (top >> x) & 1;
-				let bot_bit = (bot >> x) & 1;
+				let low_bit = (low_byte >> x) & 1;
+				let high_bit = (high_byte >> x) & 1;
 
-				let combined = (top_bit << 1) | bot_bit;
+				let combined = (high_bit << 1) | low_bit;
 
-				let color = match combined {
-					3 => 0,
-					2 => 0x990000,
-					1 => 0x330000,
-					_ => 0xFF0000,
-				};
-
-				tile[((y * 8) + x as u16) as usize] = color;
+				tile[((y * 8) + x_flip as u16) as usize] = self.colorize(combined);
 
 				x -= 1;
 			}
@@ -254,6 +272,9 @@ impl Gpu {
 
 	pub fn write(&mut self, address: u16, data: u8) {
 		match address {
+			BGP  => { self.BGP.set(data); },
+			OBP0 => { self.OBP0.set(data); },
+			OBP1 => { self.OBP1.set(data); },
 			VRAM_START ... VRAM_END => {
 				let index = address - VRAM_START;
 				self.Vram[index as usize] = data;

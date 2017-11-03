@@ -47,6 +47,9 @@ impl Interconnect {
 
 	pub fn write(&mut self, address: u16, data: u8) {
 		//println!("WRITE ${:2X} TO ${:4X}", data, address);
+		if self.write_registers(address, data) {
+			return;
+		}
 		match address {
 			ROM_START  ... ROM_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => self.gpu.write(address, data),
@@ -79,5 +82,14 @@ impl Interconnect {
 			LY => Some(self.gpu.LY.get()),
 			_ => None
 		}
+	}
+
+	fn write_registers(&mut self, address: u16, data: u8) -> bool {
+		let mut found = true;
+		match address {
+			BGP | OBP0 | OBP1 => self.gpu.write(address, data),
+			_ => found = false,
+		}
+		found
 	}
 }
