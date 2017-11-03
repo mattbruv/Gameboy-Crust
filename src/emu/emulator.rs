@@ -30,7 +30,7 @@ impl Emulator {
 
 	pub fn run(&mut self) {
 
-		let mut tile_window: Option<Box<Window>> = None;
+		let mut tile_window: Option<Window> = None;
 
 		while self.window.is_open() && !self.window.is_key_down(Key::Escape) {
 			let mut video_sink = VideoSink::new();
@@ -45,16 +45,11 @@ impl Emulator {
 				self.window.update_with_buffer(frame.as_slice()).unwrap();
 
 				if self.window.is_key_pressed(Key::V, KeyRepeat::No) {
+					println!("V PRESSED");
 					self.toggle_vram(&mut tile_window);
 				}
 
-				match tile_window.as_mut() {
-					Some(window) => {
-						let buffer = self.gameboy.interconnect.gpu.get_tiles();
-						window.update_with_buffer(&buffer).unwrap();
-					},
-					None => {},
-				}
+				self.vram_loop(&mut tile_window);
 			}
 
 			thread::sleep(time::Duration::from_millis(10));
@@ -63,18 +58,33 @@ impl Emulator {
 		self.gameboy.cpu.debug();
 	}
 
-	fn toggle_vram(&self, tile_viewer: &mut Option<Box<Window>>) {
+	fn vram_loop(&mut self, window: &mut Option<Window>) {
+		let mut close = false;
+		if let Some(vram) = window.as_mut() {
+			if vram.is_open() {
+				let buffer = self.gameboy.interconnect.gpu.get_tiles();
+				vram.update_with_buffer(buffer.as_slice()).unwrap();
+			} else {
+				close = true;
+			}
+		}
+		if close {
+			*window = None;
+		}
+	}
+
+	fn toggle_vram(&self, tile_viewer: &mut Option<Window>) {
 		if tile_viewer.is_some() {
 			println!("Closing VRAM window");
 			*tile_viewer = None
 		} else {
 			println!("Opening VRAM window");
-			*tile_viewer = Some(Box::new(Window::new("VRAM Tile Viewer", 128, 192, WindowOptions {
+			*tile_viewer = Some(Window::new("VRAM Tile Viewer", 128, 192, WindowOptions {
 				borderless: false,
 				title: true,
 				resize: false,
 				scale: Scale::X4,
-			}).unwrap()));
+			}).unwrap());
 		}
 	}
 }
