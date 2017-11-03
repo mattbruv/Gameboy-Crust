@@ -68,7 +68,7 @@ impl Interconnect {
 
 	// Take the latest number of machine cycles and keep other hardware in sync
 	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
-		self.gpu.cycles(cycles, video_sink);
+		self.gpu.cycles(cycles, &mut self.interrupt, video_sink);
 	}
 
 	// Intercept and re-route reads to memory registers to their actual location

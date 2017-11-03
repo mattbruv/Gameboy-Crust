@@ -52,6 +52,8 @@ impl CPU {
 	// Perform one step of the fetch-decode-execute cycle
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
 
+		self.handle_interrupts(memory);
+
 		let old_pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
 		//let command = disassemble(&self.regs, &memory, opcode);
@@ -361,7 +363,7 @@ impl CPU {
 			0xD0 => { self.ret_if(memory, Condition::NotCarry) },
 			0xD8 => { self.ret_if(memory, Condition::Carry) },
 			// RETI (return from interrupt)
-			0xD9 => { unimplemented!(); },
+			0xD9 => { memory.interrupt.enable(); self.ret(memory); 4 },
 			// RST t
 			0xC7 => { self.rst(memory, RstVector::Rst1); 4 },
 			0xCF => { self.rst(memory, RstVector::Rst2); 4 },
@@ -973,6 +975,12 @@ impl CPU {
 	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
 		let source = vector as u16;
 		self.call(memory, source);
+	}
+
+	fn handle_interrupts(&mut self, memory: &mut Interconnect) {
+		if let Some(vector) = memory.interrupt.execute_next() {
+			self.call(memory, vector as u16);
+		}
 	}
 
 	pub fn debug(&mut self) {

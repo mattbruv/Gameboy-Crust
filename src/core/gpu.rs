@@ -1,6 +1,7 @@
 use core::helper::*;
 use core::sink::*;
 use core::memory_map::*;
+use core::interrupt::*;
 
 const FRAME_WIDTH: usize = 160;
 const FRAME_HEIGHT: usize = 144;
@@ -39,10 +40,10 @@ enum StatusMode {
 }
 
 enum StatusInterrupt {
-	HBlank,
-	VBlank,
-	Oam,
-	Coincidence,
+	HBlank      = 0b00001000,
+	VBlank      = 0b00010000,
+	Oam         = 0b00100000,
+	Coincidence = 0b01000000,
 }
 
 // Entry for the tile cache
@@ -183,7 +184,7 @@ impl Gpu {
 		self.tile_cache[id].pixels = tile;
 	}
 
-	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
+	pub fn cycles(&mut self, cycles: usize, interrupt: &mut InterruptHandler, video_sink: &mut VideoSink) {
 
 		let old_mode = self.get_mode();
 		let mut new_mode: StatusMode;
@@ -194,8 +195,13 @@ impl Gpu {
 		// we are in vblank
 		if self.frame_cycles > FRAME_PERIOD {
 
+			// We have just entered the Vblank period
 			if old_mode != StatusMode::VBlank {
 				self.set_mode(StatusMode::VBlank);
+				self.set_stat(StatusInterrupt::VBlank);
+				// Call the appropriate interrupt
+				interrupt.request_interrupt(InterruptFlag::VBlank);
+				interrupt.request_interrupt(InterruptFlag::Lcdc);
 			}
 
 			// we have completed vblank period, reset everything, update sink
@@ -213,6 +219,8 @@ impl Gpu {
 				0 ... OAM_PERIOD => { // OAM
 					if old_mode != StatusMode::Oam {
 						self.set_mode(StatusMode::Oam);
+						self.set_stat(StatusInterrupt::Oam);
+						interrupt.request_interrupt(InterruptFlag::Lcdc);
 					}
 				},
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
@@ -227,6 +235,8 @@ impl Gpu {
 					// We have just entered H-Blank
 					if old_mode != StatusMode::HBlank {
 						self.set_mode(StatusMode::HBlank);
+						self.set_stat(StatusInterrupt::HBlank);
+						interrupt.request_interrupt(InterruptFlag::Lcdc);
 					}
 				},
 				_ => {},
@@ -238,6 +248,15 @@ impl Gpu {
 		if self.scanline_cycles > HBLANK_PERIOD {
 			self.LY.add(1);
 			self.scanline_cycles = 0;
+		}
+
+		// LY == LYC Coincidence flag
+		if self.LY.get() == self.LYC.get() {
+			self.STAT.set_bit(Bit::Bit2);
+			self.set_stat(StatusInterrupt::Coincidence);
+			interrupt.request_interrupt(InterruptFlag::Lcdc);
+		} else {
+			self.STAT.clear_bit(Bit::Bit2);
 		}
 	}
 
@@ -306,17 +325,10 @@ impl Gpu {
 
 	// sets the interrupt type on the status register
 	// so programmers can check the reason the machine interrupted
-	fn set_interrupt(&mut self, mode: StatusInterrupt, value: bool) {
-
-		let stat = self.STAT.get();
-
-		match mode {
-			StatusInterrupt::HBlank => {},
-			StatusInterrupt::VBlank => {},
-			StatusInterrupt::Oam => {},
-			StatusInterrupt::Coincidence => {},
-		}
-
+	fn set_stat(&mut self, mode: StatusInterrupt) {
+		let mut stat = self.STAT.get();
+		stat |= mode as u8;
+		self.STAT.set(stat);
 	}
 
 	// Reads raw data directly from VRAM
@@ -344,7 +356,10 @@ impl Gpu {
 			OBP0 => { self.OBP0.set(data); },
 			OBP1 => { self.OBP1.set(data); },
 			LCDC => { self.LCDC.set(data); },
-			STAT => { self.STAT.set(data); },
+			STAT => {
+				// Bits 0-2 are read only
+				self.STAT.set(data & 0xF8);
+			},
 			LYC => { self.LYC.set(data); },
 			LY => { self.LY.set(data); },
 			VRAM_START ... VRAM_END => {

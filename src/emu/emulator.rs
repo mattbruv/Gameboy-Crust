@@ -52,6 +52,13 @@ impl Emulator {
 			}
 
 			thread::sleep(time::Duration::from_millis(10));
+			//let IF = self.gameboy.interconnect.interrupt.IF.get();
+			//let IE = self.gameboy.interconnect.interrupt.IE.get();
+			//let STAT = self.gameboy.interconnect.gpu.STAT.get();
+
+			//println!("IF: {:08b}", IF);
+			//println!("IE: {:08b}", IE);
+			//println!("STAT: {:08b}", STAT);
 		}
 
 		self.gameboy.cpu.debug();
