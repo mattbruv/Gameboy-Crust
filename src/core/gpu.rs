@@ -23,6 +23,12 @@ const HBLANK_PERIOD: usize     = 456; // 456 cycles
 const FRAME_PERIOD: usize      = HBLANK_PERIOD * LCD_HEIGHT; // 65,664 cycles for full frame
 const VBLANK_PERIOD: usize     = FRAME_PERIOD + 4560; // 4,560 cycles for vblank
 
+// Type of Tile Map
+enum TileMapType {
+	Signed,
+	Unsigned,
+}
+
 // Status of the LCD controller
 #[derive(Debug, PartialEq)]
 enum StatusMode {
@@ -212,6 +218,9 @@ impl Gpu {
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
 					if old_mode != StatusMode::Transfer {
 						self.set_mode(StatusMode::Transfer);
+						// The LCD controller is now transferring data from VRAM to screen.
+						// Udpate the internal framebuffer at the current scanline to mimic this.
+						self.update_scanline();
 					}
 				},
 				TRANSFER_PERIOD ... HBLANK_PERIOD => { // OAM
@@ -229,6 +238,52 @@ impl Gpu {
 		if self.scanline_cycles > HBLANK_PERIOD {
 			self.LY.add(1);
 			self.scanline_cycles = 0;
+		}
+	}
+
+	// Draw the current scanline on the internal framebuffer
+	fn update_scanline(&mut self) {
+
+		let test = self.LCDC.get();
+		//println!("{:08b}", test);
+		let mut map_address: u16;
+		let mut map_type: TileMapType;
+
+		match self.LCDC.is_set(Bit::Bit3) {
+			false => { map_type = TileMapType::Unsigned; map_address = 0x9800; },
+			true  => { map_type = TileMapType::Signed;   map_address = 0x9C00; },
+		};
+
+		let y = self.LY.get();
+		let map_y = y / 8;
+		// Loop through the 20 tiles on this scanline where L = LY
+		for map_x in 0..20 {
+
+			let tile_offset = (map_y as u16 * 32) + map_x;
+			let map_id = self.read_raw(map_address + tile_offset);
+			let tile_id = self.map_id_to_tile_id(&map_type, map_id);
+
+			// Refresh the tile if it has been overwritten in VRAM
+			if self.tile_cache[tile_id].dirty {
+				self.refresh_tile(tile_id);
+			}
+
+			let tile_y = y % 8;
+			for tile_x in 0..8 {
+				let pixel = self.tile_cache[tile_id].pixels[((tile_y * 8) + tile_x) as usize];
+				let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
+				self.frame_buffer[buffer_offset as usize] = pixel;
+			}
+
+			//println!("Look at ${:04X} for x {} y {}", (map_address + tile_offset as u16), map_x, map_y);
+		}
+	}
+
+	// Translates a tile map ID to the proper tile based on the area of VRAM the tile is stored.
+	fn map_id_to_tile_id(&self, map: &TileMapType, map_id: u8) -> usize {
+		match *map {
+			TileMapType::Unsigned =>  { map_id as usize },
+			TileMapType::Signed => { unimplemented!("No Signed lookup!") },
 		}
 	}
 
@@ -264,6 +319,13 @@ impl Gpu {
 
 	}
 
+	// Reads raw data directly from VRAM
+	// This is necessary to bypass the memory access restrictions
+	// that are imposed on the CPU depending on LCD STAT register
+	fn read_raw(&self, address: u16) -> u8 {
+		self.Vram[(address - VRAM_START) as usize]
+	}
+
 	pub fn read(&self, address: u16) -> u8 {
 		match address {
 			VRAM_START ... VRAM_END => {
@@ -281,11 +343,14 @@ impl Gpu {
 			BGP  => { self.BGP.set(data); },
 			OBP0 => { self.OBP0.set(data); },
 			OBP1 => { self.OBP1.set(data); },
+			LCDC => { self.LCDC.set(data); },
+			STAT => { self.STAT.set(data); },
+			LYC => { self.LYC.set(data); },
+			LY => { self.LY.set(data); },
 			VRAM_START ... VRAM_END => {
 				let index = address - VRAM_START;
 				self.Vram[index as usize] = data;
 				// Mark this data as dirty so the tile cache updates
-
 				if address <= TILE_RAM_END {
 					let tile_id = index / 16;
 					self.tile_cache[tile_id as usize].dirty = true;

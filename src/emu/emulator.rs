@@ -45,7 +45,6 @@ impl Emulator {
 				self.window.update_with_buffer(frame.as_slice()).unwrap();
 
 				if self.window.is_key_pressed(Key::V, KeyRepeat::No) {
-					println!("V PRESSED");
 					self.toggle_vram(&mut tile_window);
 				}
 

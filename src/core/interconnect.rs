@@ -88,7 +88,7 @@ impl Interconnect {
 	fn write_registers(&mut self, address: u16, data: u8) -> bool {
 		let mut found = true;
 		match address {
-			BGP | OBP0 | OBP1 => self.gpu.write(address, data),
+			BGP | OBP0 | OBP1 | LCDC | STAT | LY | LYC => self.gpu.write(address, data),
 			_ => found = false,
 		}
 		found
