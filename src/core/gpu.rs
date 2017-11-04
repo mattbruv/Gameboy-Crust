@@ -162,8 +162,8 @@ impl Gpu {
 		let mut tile = vec![0; 64];
 
 		for y in 0..8 {
-			let low_byte = &self.read(offset + (y * 2));
-			let high_byte = &self.read(offset + (y * 2) + 1);
+			let low_byte = &self.read_raw(offset + (y * 2));
+			let high_byte = &self.read_raw(offset + (y * 2) + 1);
 			let mut x: i8 = 7;
 			// Loop through all the pixels in a y value
 			while x >= 0 {
@@ -185,6 +185,10 @@ impl Gpu {
 	}
 
 	pub fn cycles(&mut self, cycles: usize, interrupt: &mut InterruptHandler, video_sink: &mut VideoSink) {
+
+		if !self.display_enabled() {
+			return;
+		}
 
 		let old_mode = self.get_mode();
 		let mut new_mode: StatusMode;
@@ -299,6 +303,7 @@ impl Gpu {
 	}
 
 	// Translates a tile map ID to the proper tile based on the area of VRAM the tile is stored.
+	#[inline]
 	fn map_id_to_tile_id(&self, map: &TileMapType, map_id: u8) -> usize {
 		match *map {
 			TileMapType::Unsigned =>  { map_id as usize },
@@ -341,28 +346,46 @@ impl Gpu {
 	pub fn read(&self, address: u16) -> u8 {
 		match address {
 			VRAM_START ... VRAM_END => {
-				self.Vram[(address - VRAM_START) as usize]
+				match self.get_mode() {
+					// Cannot access VRAM in Transfer Mode
+					StatusMode::Transfer => 0xFF,
+					_ => {
+						self.Vram[(address - VRAM_START) as usize]
+					},
+				}
 			},
 			OAM_START  ... OAM_END  => {
-				self.Oam[(address - OAM_START) as usize]
+				match self.get_mode() {
+					// Cannot access OAM in the following modes:
+					StatusMode::Transfer | StatusMode::Oam => 0xFF,
+					_ => {
+						self.Oam[(address - OAM_START) as usize]
+					},
+				}
 			},
 			_ => unreachable!(),
 		}
 	}
 
 	pub fn write(&mut self, address: u16, data: u8) {
+		let stat = self.LCDC.get();
 		match address {
 			BGP  => { self.BGP.set(data); },
 			OBP0 => { self.OBP0.set(data); },
 			OBP1 => { self.OBP1.set(data); },
-			LCDC => { self.LCDC.set(data); },
+			LCDC => { self.update_lcdc(data); },
 			STAT => {
 				// Bits 0-2 are read only
 				self.STAT.set(data & 0xF8);
 			},
 			LYC => { self.LYC.set(data); },
 			LY => { self.LY.set(data); },
+
 			VRAM_START ... VRAM_END => {
+				// Disallow writes to VRAM depending on the mode
+				if self.get_mode() == StatusMode::Transfer {
+					return;
+				}
 				let index = address - VRAM_START;
 				self.Vram[index as usize] = data;
 				// Mark this data as dirty so the tile cache updates
@@ -371,11 +394,38 @@ impl Gpu {
 					self.tile_cache[tile_id as usize].dirty = true;
 				}
 			},
+
 			OAM_START ... OAM_END => {
-				self.Oam[(address - OAM_START) as usize] = data;
+				match self.get_mode() {
+					StatusMode::Oam | StatusMode::Transfer => { return; },
+					_ => {
+						self.Oam[(address - OAM_START) as usize] = data;
+					}
+				};
 			},
 			_ => unreachable!(),
 		}
+	}
+
+	fn update_lcdc(&mut self, data: u8) {
+		let new = MemoryRegister::new(data);
+
+		if !new.is_set(Bit::Bit7) && self.display_enabled() {
+			if self.get_mode() != StatusMode::VBlank {
+				panic!("LCD off, but not in VBlank");
+			}
+			self.LY.clear();
+		}
+		/* if new.is_set(Bit::Bit7) && !self.display_enabled() {
+			self.scanline_cycles = 0;
+			self.frame_cycles = 0;
+		} */
+		self.LCDC.set(data);
+	}
+
+	#[inline]
+	fn display_enabled(&self) -> bool {
+		self.LCDC.is_set(Bit::Bit7)
 	}
 
 	pub fn debug(&mut self) {
