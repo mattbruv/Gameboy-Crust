@@ -317,19 +317,19 @@ impl CPU {
 			0x09 => { let rr = self.regs.bc(); self.add_hl(rr); 2 },
 			0x19 => { let rr = self.regs.de(); self.add_hl(rr); 2 },
 			0x29 => { let rr = self.regs.hl(); self.add_hl(rr); 2 },
-			0x39 => { let rr = self.regs.sp; self.add_hl(rr); 2 },
+			0x39 => { let rr = self.regs.sp;   self.add_hl(rr); 2 },
 			// ADD SP, e
 			0xE8 => { unimplemented!(); },
 			// INC ss (no flags changed here)
 			0x03 => { let rr = self.regs.bc().wrapping_add(1); self.regs.set_bc(rr); 2 },
 			0x13 => { let rr = self.regs.de().wrapping_add(1); self.regs.set_de(rr); 2 },
 			0x23 => { let rr = self.regs.hl().wrapping_add(1); self.regs.set_hl(rr); 2 },
-			0x33 => { let rr = self.regs.sp.wrapping_add(1); self.regs.sp = rr; 2 },
+			0x33 => { let rr = self.regs.sp.wrapping_add(1);   self.regs.sp = rr;    2 },
 			// DEC ss (no flags changed here)
 			0x0B => { let rr = self.regs.bc().wrapping_sub(1); self.regs.set_bc(rr); 2 },
 			0x1B => { let rr = self.regs.de().wrapping_sub(1); self.regs.set_de(rr); 2 },
 			0x2B => { let rr = self.regs.hl().wrapping_sub(1); self.regs.set_hl(rr); 2 },
-			0x3B => { let rr = self.regs.sp.wrapping_sub(1); self.regs.sp = rr; 2 },
+			0x3B => { let rr = self.regs.sp.wrapping_sub(1);   self.regs.sp = rr; 2 },
 
 			// JP nn
 			0xC3 => { let nn = self.next_pointer(memory); self.jump(nn); 4 },
@@ -380,8 +380,14 @@ impl CPU {
 			0x1F => { let a = self.regs.a; self.regs.a = self.rotate_right(a, true, false); 1 },
 			// Sub-Operations
 			0xCB => { self.sub_op(memory) },
+			// Decimal Adjust Accumulator
+			0x27 => { self.daa(); 1 },
 			// CPL
-			0x2F => { self.cpl(); 1 }
+			0x2F => { self.cpl(); 1 },
+			// scf
+			0x37 => { self.scf(); 1 },
+			// ccf
+			0x3F => { self.ccf(); 1 },
 			// NOP
 			0x00 => { 1 }, // easiest opcode of my life
 
@@ -876,13 +882,42 @@ impl CPU {
 		(!(bit as u8) & n)
 	}
 
+	fn daa(&mut self) {
+		let mut carry = false;
+		if !self.regs.is_flag_set(Flag::Sub) {
+			if self.regs.is_flag_set(Flag::Carry) || self.regs.a > 0x99 {
+				self.regs.a = self.regs.a.wrapping_add(0x60);
+				carry = true;
+			}
+			if self.regs.is_flag_set(Flag::HalfCarry) || self.regs.a & 0x0F > 0x09 {
+				self.regs.a = self.regs.a.wrapping_add(0x06);
+			}
+		} else if self.regs.is_flag_set(Flag::Carry) {
+			carry = true;
+			self.regs.a = self.regs.a.wrapping_add(
+				match self.regs.is_flag_set(Flag::HalfCarry) {
+					true =>  0x9A,
+					false => 0xA0,
+				}
+			);
+		} else if self.regs.is_flag_set(Flag::HalfCarry) {
+			self.regs.a = self.regs.a.wrapping_add(0xFA);
+		}
+		let a = self.regs.a;
+		let sub = self.regs.is_flag_set(Flag::Sub);
+		self.regs.set_flag(Flag::Zero, (a == 0));
+		self.regs.set_flag(Flag::Sub, sub);
+		self.regs.set_flag(Flag::Carry, carry);
+	}
+
 	/* 16-bit operations */
 
 	fn add_hl(&mut self, n: u16) {
 		let hl = self.regs.hl();
-		let (result, carry) = hl.overflowing_add(n);
-		let half_carry = ((hl & 0xFFF) + (n & 0xFFF)) & 0x1000 != 0;
-		self.regs.set_flag(Flag::Carry, carry);
+		let result = hl.wrapping_add(n);
+		//((((target & 0xFFF) + (value & 0xFFF)) & 0x1000) != 0))
+		let half_carry = (((hl & 0xFFF) + (n & 0xFFF)) & 0x1000) != 0;
+		self.regs.set_flag(Flag::Carry, hl > 0xFFFF - n);
 		self.regs.set_flag(Flag::HalfCarry, half_carry);
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_hl(result);
@@ -975,6 +1010,23 @@ impl CPU {
 	fn rst(&mut self, memory: &mut Interconnect, vector: RstVector) {
 		let source = vector as u16;
 		self.call(memory, source);
+	}
+
+	// scf 4 -001 cy=1
+	fn scf(&mut self) {
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Carry, true);
+	}
+	// ccf 4 -00c cy=cy xor 1
+	fn ccf(&mut self) {
+		let bit = match self.regs.is_flag_set(Flag::Carry) {
+			true => 1,
+			false => 0,
+		};
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Carry, (bit ^ 1) == 1);
 	}
 
 	fn handle_interrupts(&mut self, memory: &mut Interconnect) {
