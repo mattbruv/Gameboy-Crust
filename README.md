@@ -6,7 +6,7 @@ The name is derived from the idea that `Color` + `Rust` = `Crust`. It's not the 
 
 ## Progress
 
-Gameboy Crust is quite trivial at the moment. Video/Hardware emulation is very simple at the moment but will improve quickly over time. Full DMG (original gameboy) emulation is a priority before fleshing out GBC emulation.
+Gameboy Crust is quite trivial at the moment. Video/Hardware emulation is very basic but will improve quickly over time. Full DMG (original gameboy) emulation is a priority before fleshing out GBC emulation.
 
 ![Progress](https://i.imgur.com/3u0Y2ID.png)
 
@@ -19,7 +19,15 @@ Once the project is completed, official releases will be compiled and released [
 ## Controls
 | Function | Key |
 | --- | --- |
-| View VRAM | <kbd>v</kbd> |
+| A | <kbd>A</kbd> |
+| B | <kbd>S</kbd> |
+| Start | <kbd>Z</kbd> |
+| Select | <kbd>X</kbd> |
+| D-Pad Up | <kbd>🡱</kbd> |
+| D-Pad Down | <kbd>🡳</kbd> |
+| D-Pad Left | <kbd>🡰</kbd> |
+| D-Pad Right | <kbd>🡲</kbd> |
+| View VRAM | <kbd>V</kbd> |
 
 ## Feature Checklist
 A checklist of all the planned system components as I complete them. The entries with check marks have been started on. *Italic* entries still need work.
@@ -28,11 +36,11 @@ A checklist of all the planned system components as I complete them. The entries
 - [X] *Memory / Memory Map*
 - [X] *Cartridge Memory Bank Controllers*
 - [ ] Cartridge Battery backed SRAM
-- [X] *Interrupt Controller*
+- [X] Interrupt Controller
 - [X] *Frequency/Timing*
 - [X] *Video Display*
 - [ ] Full GBC Color Palettes
-- [ ] Joypad Input
+- [X] Joypad Input
 - [ ] Audio Output
 - [ ] Link Cable (via networking?)
 - [ ] CPU overclocking
