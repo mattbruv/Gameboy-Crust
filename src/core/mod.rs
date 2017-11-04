@@ -15,3 +15,4 @@ pub mod wram;
 pub mod hram;
 pub mod mbc;
 pub mod sink;
+pub mod joypad;

@@ -5,6 +5,7 @@ use gpu::*;
 use sink::*;
 use interrupt::*;
 use memory_map::*;
+use joypad::*;
 
 pub struct Interconnect {
 	rom: Rom,
@@ -12,6 +13,7 @@ pub struct Interconnect {
 	hram: Hram,
 	pub gpu: Gpu,
 	pub interrupt: InterruptHandler,
+	pub joypad: Joypad,
 }
 
 impl Interconnect {
@@ -22,6 +24,7 @@ impl Interconnect {
 			wram: Wram::new(),
 			hram: Hram::new(),
 			interrupt: InterruptHandler::new(),
+			joypad: Joypad::new(),
 		}
 	}
 
@@ -53,7 +56,7 @@ impl Interconnect {
 		match address {
 			ROM_START  ... ROM_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => self.gpu.write(address, data),
-			ERAM_START ... ERAM_END => panic!("Write to ERAM not implemented"),
+			ERAM_START ... ERAM_END => panic!("Write to ERAM not implemented ${:04X}", address),
 			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
 			ECHO_START ... ECHO_END => {
 				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.
@@ -74,7 +77,7 @@ impl Interconnect {
 	// Intercept and re-route reads to memory registers to their actual location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
-			P1 => { Some(0x0F) },
+			P1 => Some(self.joypad.read()),
 			IE => Some(self.interrupt.IE.get()),
 			IF => Some(self.interrupt.IF.get()),
 			LCDC => Some(self.gpu.LCDC.get()),
@@ -88,7 +91,9 @@ impl Interconnect {
 	fn write_registers(&mut self, address: u16, data: u8) -> bool {
 		let mut found = true;
 		match address {
+			P1 => self.joypad.write(data),
 			BGP | OBP0 | OBP1 | LCDC | STAT | LY | LYC => self.gpu.write(address, data),
+			IE | IF => self.interrupt.write(address, data),
 			_ => found = false,
 		}
 		found

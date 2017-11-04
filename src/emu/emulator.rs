@@ -1,6 +1,7 @@
 use core::gameboy::*;
 use core::rom::*;
 use core::sink::*;
+use core::joypad::*;
 use minifb::{Key, WindowOptions, Window, Scale, KeyRepeat};
 use std::{thread, time};
 
@@ -43,25 +44,29 @@ impl Emulator {
 
 			if let Some(frame) = video_sink.consume() {
 				self.window.update_with_buffer(frame.as_slice()).unwrap();
-
 				if self.window.is_key_pressed(Key::V, KeyRepeat::No) {
 					self.toggle_vram(&mut tile_window);
 				}
-
+				self.read_input();
 				self.vram_loop(&mut tile_window);
 			}
 
-			thread::sleep(time::Duration::from_millis(10));
-			//let IF = self.gameboy.interconnect.interrupt.IF.get();
-			//let IE = self.gameboy.interconnect.interrupt.IE.get();
-			//let STAT = self.gameboy.interconnect.gpu.STAT.get();
-
-			//println!("IF: {:08b}", IF);
-			//println!("IE: {:08b}", IE);
-			//println!("STAT: {:08b}", STAT);
+			thread::sleep(time::Duration::from_millis(3));
 		}
 
 		self.gameboy.cpu.debug();
+	}
+
+	fn read_input(&mut self) {
+		let i = &mut self.gameboy.interconnect.interrupt;
+		self.gameboy.interconnect.joypad.set_direction_pressed(i, PAD_UP, self.window.is_key_down(Key::Up));
+		self.gameboy.interconnect.joypad.set_direction_pressed(i, PAD_DOWN, self.window.is_key_down(Key::Down));
+		self.gameboy.interconnect.joypad.set_direction_pressed(i, PAD_LEFT, self.window.is_key_down(Key::Left));
+		self.gameboy.interconnect.joypad.set_direction_pressed(i, PAD_RIGHT, self.window.is_key_down(Key::Right));
+		self.gameboy.interconnect.joypad.set_button_pressed(i, BUTTON_A, self.window.is_key_down(Key::A));
+		self.gameboy.interconnect.joypad.set_button_pressed(i, BUTTON_B, self.window.is_key_down(Key::S));
+		self.gameboy.interconnect.joypad.set_button_pressed(i, BUTTON_START, self.window.is_key_down(Key::Z));
+		self.gameboy.interconnect.joypad.set_button_pressed(i, BUTTON_SELECT, self.window.is_key_down(Key::X));
 	}
 
 	fn vram_loop(&mut self, window: &mut Option<Window>) {

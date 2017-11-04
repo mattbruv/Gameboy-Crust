@@ -1,4 +1,5 @@
 use core::helper::*;
+use core::memory_map::*;
 
 pub enum InterruptFlag {
 	VBlank = 0b00000001,
@@ -8,6 +9,7 @@ pub enum InterruptFlag {
 	Joypad = 0b00010000,
 }
 
+#[derive(Debug)]
 pub enum InterruptVector {
 	VBlank = 0x0040,
 	Lcdc   = 0x0048,
@@ -43,23 +45,40 @@ impl InterruptHandler {
 		self.master_enable = false;
 	}
 
+	pub fn read(&mut self, address: u16) -> u8 {
+		match address {
+			IE => self.IE.get(),
+			IF => self.IF.get(),
+			_ => panic!("Unknown read from InterruptHandler")
+		}
+	}
+
+	pub fn write(&mut self, address: u16, data: u8) {
+		match address {
+			IE => self.IE.set(data),
+			IF => self.IF.set(data),
+			_ => panic!("Unknown read from InterruptHandler")
+		}
+	}
+
 	// Returns an interrupt vector if there is an interrupt to be handled
 	pub fn execute_next(&mut self) -> Option<InterruptVector> {
 		let mut address = None;
 		if self.master_enable {
-			let IF = self.IF.get(); // Interrupt Flag
-			let IE = self.IE.get(); // Interrupt Enable
-			for bit in 0..5 {
-				if IF & bit > 0 {
-					if IE & bit > 0 {
-						self.IF.set(IF & !bit);
+			let interrupt_flag = self.IF.get(); // Interrupt Flag
+			let interrupt_enable = self.IE.get(); // Interrupt Enable
+			for index in 0..5 {
+				let bit = 1 << index;
+				if interrupt_enable & bit > 0 {
+					if interrupt_flag & bit > 0 {
+						self.IF.set(interrupt_flag & !bit);
 						address = match bit {
-							0 => Some(InterruptVector::VBlank),
-							1 => Some(InterruptVector::Lcdc),
-							2 => Some(InterruptVector::Timer),
-							3 => Some(InterruptVector::Serial),
-							4 => Some(InterruptVector::Joypad),
-							_ => unreachable!(),
+							0b00000001 => Some(InterruptVector::VBlank),
+							0b00000010 => Some(InterruptVector::Lcdc),
+							0b00000100 => Some(InterruptVector::Timer),
+							0b00001000 => Some(InterruptVector::Serial),
+							0b00010000 => Some(InterruptVector::Joypad),
+							_ => unreachable!("BIT: {:08b}", bit),
 						};
 						break;
 					}
