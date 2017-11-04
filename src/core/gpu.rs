@@ -24,12 +24,6 @@ const HBLANK_PERIOD: usize     = 456; // 456 cycles
 const FRAME_PERIOD: usize      = HBLANK_PERIOD * LCD_HEIGHT; // 65,664 cycles for full frame
 const VBLANK_PERIOD: usize     = FRAME_PERIOD + 4560; // 4,560 cycles for vblank
 
-// Type of Tile Map
-enum TileMapType {
-	Signed,
-	Unsigned,
-}
-
 // Status of the LCD controller
 #[derive(Debug, PartialEq)]
 enum StatusMode {
@@ -268,13 +262,16 @@ impl Gpu {
 	fn update_scanline(&mut self) {
 
 		let test = self.LCDC.get();
-		//println!("{:08b}", test);
-		let mut map_address: u16;
-		let mut map_type: TileMapType;
 
-		match self.LCDC.is_set(Bit::Bit3) {
-			false => { map_type = TileMapType::Unsigned; map_address = 0x9800; },
-			true  => { map_type = TileMapType::Signed;   map_address = 0x9C00; },
+		// BG Tile Map Display Select
+		let tile_map_location = match self.LCDC.is_set(Bit::Bit3) {
+			true  => 0x9C00,
+			false => 0x9800,
+		};
+
+		let tile_data_location = match self.LCDC.is_set(Bit::Bit4) {
+			false => 0x9000,
+			true => 0x8000,
 		};
 
 		let y = self.LY.get();
@@ -282,9 +279,23 @@ impl Gpu {
 		// Loop through the 20 tiles on this scanline where L = LY
 		for map_x in 0..20 {
 
-			let tile_offset = (map_y as u16 * 32) + map_x;
-			let map_id = self.read_raw(map_address + tile_offset);
-			let tile_id = self.map_id_to_tile_id(&map_type, map_id);
+			let tile_map_index = (map_y as u16 * 32) + map_x;
+
+			// Finding true tile ID ********
+			let lookup = tile_map_location + tile_map_index;
+			let tile_pattern = self.read_raw(lookup);
+
+			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
+				false => {
+					let direction = (tile_pattern as i16 * 16) as u16;
+					tile_data_location + direction
+				}, // $8800-97FF (signed, so we start in the middle)
+				true  => {
+					(tile_pattern as u16 * 16) + tile_data_location
+				}, // $8800-97FF (unsigned)
+			};
+
+			let tile_id = self.address_to_tile_id(vram_location);
 
 			// Refresh the tile if it has been overwritten in VRAM
 			if self.tile_cache[tile_id].dirty {
@@ -297,20 +308,16 @@ impl Gpu {
 				let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
 				self.frame_buffer[buffer_offset as usize] = pixel;
 			}
-
-			//println!("Look at ${:04X} for x {} y {}", (map_address + tile_offset as u16), map_x, map_y);
 		}
 	}
 
-	// Translates a tile map ID to the proper tile based on the area of VRAM the tile is stored.
+	// Translates a location in VRAM to the relevant tile cache ID
 	#[inline]
-	fn map_id_to_tile_id(&self, map: &TileMapType, map_id: u8) -> usize {
-		match *map {
-			TileMapType::Unsigned =>  { map_id as usize },
-			TileMapType::Signed => { unimplemented!("No Signed lookup!") },
-		}
+	fn address_to_tile_id(&self, address: u16) -> usize {
+		((address - VRAM_START) / 16) as usize
 	}
 
+	#[inline]
 	fn get_mode(&self) -> StatusMode {
 		let mode = self.STAT.get() & 0x3;
 		match mode {
@@ -322,6 +329,7 @@ impl Gpu {
 		}
 	}
 
+	#[inline]
 	fn set_mode(&mut self, mode: StatusMode) {
 		let mut stat = self.STAT.get() & !(0x3);
 		stat |= mode as u8;
@@ -339,6 +347,7 @@ impl Gpu {
 	// Reads raw data directly from VRAM
 	// This is necessary to bypass the memory access restrictions
 	// that are imposed on the CPU depending on LCD STAT register
+	#[inline]
 	fn read_raw(&self, address: u16) -> u8 {
 		self.Vram[(address - VRAM_START) as usize]
 	}
