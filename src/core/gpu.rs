@@ -56,12 +56,40 @@ impl TileEntry {
 	}
 }
 
+// Entry for the sprite table
+#[derive(Clone, Debug)]
+struct SpriteEntry {
+	y_pos: u8,
+	x_pos: u8,
+	tile_id: u8,
+	behind_background: bool,
+	x_flip: bool,
+	y_flip: bool,
+	palette_zero: bool,
+}
+
+impl SpriteEntry {
+	pub fn new() -> SpriteEntry {
+		SpriteEntry {
+			y_pos: 0,
+			x_pos: 0,
+			tile_id: 0,
+			behind_background: false,
+			x_flip: false,
+			y_flip: false,
+			palette_zero: false,
+		}
+	}
+}
+
 pub struct Gpu {
 	// Memory
 	Vram: Vec<u8>,
-	Oam:  Vec<u8>,
+	Oam: Vec<u8>,
 	// Tile Cache
 	tile_cache: Vec<TileEntry>, // cache rules everything around me
+	// Sprite Table
+	sprite_table: Vec<SpriteEntry>,
 	// Frame Buffer
 	frame_buffer: Vec<u32>,
 	// Registers
@@ -82,6 +110,7 @@ impl Gpu {
 			Vram: vec![0; VRAM_SIZE],
 			Oam:  vec![0; OAM_SIZE],
 			tile_cache: vec![TileEntry::new(); 384],
+			sprite_table: vec![SpriteEntry::new(); 40],
 			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
 			LCDC: MemoryRegister::new(0x00),
 			STAT: MemoryRegister::new(0x02),
@@ -260,9 +289,12 @@ impl Gpu {
 
 	// Draw the current scanline on the internal framebuffer
 	fn update_scanline(&mut self) {
+		self.draw_background();
+		self.draw_sprites();
+	}
 
-		let test = self.LCDC.get();
-
+	#[inline]
+	fn draw_background(&mut self) {
 		// BG Tile Map Display Select
 		let tile_map_location = match self.LCDC.is_set(Bit::Bit3) {
 			true  => 0x9C00,
@@ -309,6 +341,14 @@ impl Gpu {
 				self.frame_buffer[buffer_offset as usize] = pixel;
 			}
 		}
+	}
+
+	#[inline]
+	fn draw_sprites(&mut self) {
+
+		// Only 10 sprites can be displayed per scanline
+		//println!("{:?}", self.sprite_table[0]);
+
 	}
 
 	// Translates a location in VRAM to the relevant tile cache ID
@@ -409,11 +449,31 @@ impl Gpu {
 					StatusMode::Oam | StatusMode::Transfer => { return; },
 					_ => {
 						self.Oam[(address - OAM_START) as usize] = data;
+						self.update_sprite(address, data);
 					}
 				};
 			},
 			_ => unreachable!(),
 		}
+	}
+
+	// Update the sprite table with the relevant new information
+	fn update_sprite(&mut self, address: u16, data: u8) {
+		let sprite_id = (address - OAM_START) / 4; // 4 bytes of information per sprite
+		let sprite = &mut self.sprite_table[sprite_id as usize];
+		let data_type = address % 4;
+		match data_type {
+			0 => sprite.y_pos = data,
+			1 => sprite.x_pos = data,
+			2 => sprite.tile_id = data,
+			3 => {
+				sprite.behind_background = (data & Bit::Bit7 as u8) > 0;
+				sprite.y_flip = (data & Bit::Bit6 as u8) > 0;
+				sprite.x_flip = (data & Bit::Bit5 as u8) > 0;
+				sprite.palette_zero = (data & Bit::Bit4 as u8) > 0;
+			},
+			_ => unreachable!()
+		};
 	}
 
 	fn update_lcdc(&mut self, data: u8) {
@@ -425,21 +485,12 @@ impl Gpu {
 			}
 			self.LY.clear();
 		}
-		/* if new.is_set(Bit::Bit7) && !self.display_enabled() {
-			self.scanline_cycles = 0;
-			self.frame_cycles = 0;
-		} */
 		self.LCDC.set(data);
 	}
 
 	#[inline]
 	fn display_enabled(&self) -> bool {
 		self.LCDC.is_set(Bit::Bit7)
-	}
-
-	pub fn debug(&mut self) {
-		//self.tile_cache[1].pixels[8] = 3;
-		//println!("{:?}", self.tile_cache);
 	}
 
 	pub fn dump(&self) {

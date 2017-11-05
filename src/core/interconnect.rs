@@ -6,11 +6,13 @@ use sink::*;
 use interrupt::*;
 use memory_map::*;
 use joypad::*;
+use dma::*;
 
 pub struct Interconnect {
 	rom: Rom,
 	wram: Wram,
 	hram: Hram,
+	oam_dma: OamDma,
 	pub gpu: Gpu,
 	pub interrupt: InterruptHandler,
 	pub joypad: Joypad,
@@ -23,6 +25,7 @@ impl Interconnect {
 			gpu: Gpu::new(),
 			wram: Wram::new(),
 			hram: Hram::new(),
+			oam_dma: OamDma::new(),
 			interrupt: InterruptHandler::new(),
 			joypad: Joypad::new(),
 		}
@@ -72,6 +75,18 @@ impl Interconnect {
 	// Take the latest number of machine cycles and keep other hardware in sync
 	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
 		self.gpu.cycles(cycles, &mut self.interrupt, video_sink);
+		self.perform_dma(cycles);
+	}
+
+	fn perform_dma(&mut self, cycles: usize) {
+		// OAM DMA
+		if self.oam_dma.active {
+			let (from, to, bytes) = self.oam_dma.cycles(cycles);
+			for offset in 0..bytes {
+				let value = self.read(from);
+				self.write(to + offset as u16, value);
+			}
+		}
 	}
 
 	// Intercept and re-route reads to memory registers to their actual location
@@ -93,6 +108,7 @@ impl Interconnect {
 		match address {
 			P1 => self.joypad.write(data),
 			BGP | OBP0 | OBP1 | LCDC | STAT | LY | LYC => self.gpu.write(address, data),
+			OAM_DMA => self.oam_dma.request(data),
 			IE | IF => self.interrupt.write(address, data),
 			_ => found = false,
 		}
