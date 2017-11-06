@@ -347,7 +347,30 @@ impl Gpu {
 	fn draw_sprites(&mut self) {
 
 		// Only 10 sprites can be displayed per scanline
-		//println!("{:?}", self.sprite_table[0]);
+		let scanline_y = self.LY.get();
+
+		// Get all the sprites with a Y range that intersects with the current scanline
+		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
+		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
+			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + 8
+		}); //.rev().take(10);
+
+		// Draw the damn thing
+		for sprite in iter {
+			let sprite_x = sprite.x_pos;
+			let sprite_y = sprite.y_pos;
+			let tile = &self.tile_cache[sprite.tile_id as usize];
+			//rintln!("x: {}", sprite_x);
+
+			for pixel_x in 0..8 {
+				let pixel = tile.pixels[(((scanline_y % 8) * 8) + pixel_x) as usize];
+				let offset_x = sprite_x as i32 + pixel_x as i32;
+				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
+				let offset = offset_y + offset_x;
+				self.frame_buffer[offset as usize] = pixel;
+			}
+		}
+
 
 	}
 
@@ -463,8 +486,8 @@ impl Gpu {
 		let sprite = &mut self.sprite_table[sprite_id as usize];
 		let data_type = address % 4;
 		match data_type {
-			0 => sprite.y_pos = data,
-			1 => sprite.x_pos = data,
+			0 => sprite.y_pos = data.wrapping_sub(16),
+			1 => sprite.x_pos = data.wrapping_sub(8),
 			2 => sprite.tile_id = data,
 			3 => {
 				sprite.behind_background = (data & Bit::Bit7 as u8) > 0;
