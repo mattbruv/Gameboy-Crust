@@ -83,7 +83,7 @@ impl Interconnect {
 		if self.oam_dma.active {
 			let (from, to, bytes) = self.oam_dma.cycles(cycles);
 			for offset in 0..bytes {
-				let value = self.read(from);
+				let value = self.read(from + offset as u16);
 				self.write(to + offset as u16, value);
 			}
 		}

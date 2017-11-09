@@ -47,6 +47,9 @@ impl Emulator {
 				if self.window.is_key_pressed(Key::V, KeyRepeat::No) {
 					self.toggle_vram(&mut tile_window);
 				}
+				if self.window.is_key_pressed(Key::D, KeyRepeat::No) {
+					self.debug();
+				}
 				self.read_input();
 				self.vram_loop(&mut tile_window);
 			}
@@ -97,5 +100,9 @@ impl Emulator {
 				scale: Scale::X4,
 			}).unwrap());
 		}
+	}
+
+	fn debug(&self) {
+		self.gameboy.interconnect.gpu.dump();
 	}
 }

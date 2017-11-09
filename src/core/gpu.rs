@@ -352,13 +352,18 @@ impl Gpu {
 		// Get all the sprites with a Y range that intersects with the current scanline
 		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
-			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + 8
-		}); //.rev().take(10);
+			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + 7
+		}).rev().take(10);
 
 		// Draw the damn thing
 		for sprite in iter {
 			let sprite_x = sprite.x_pos;
 			let sprite_y = sprite.y_pos;
+
+			if self.tile_cache[sprite.tile_id as usize].dirty {
+				self.refresh_tile(sprite.tile_id as usize);
+			}
+
 			let tile = &self.tile_cache[sprite.tile_id as usize];
 			//rintln!("x: {}", sprite_x);
 
