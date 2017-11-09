@@ -17,3 +17,4 @@ pub mod mbc;
 pub mod sink;
 pub mod joypad;
 pub mod dma;
+pub mod timer;

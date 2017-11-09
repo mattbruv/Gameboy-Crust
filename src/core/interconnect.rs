@@ -7,12 +7,14 @@ use interrupt::*;
 use memory_map::*;
 use joypad::*;
 use dma::*;
+use timer::*;
 
 pub struct Interconnect {
 	rom: Rom,
 	wram: Wram,
 	hram: Hram,
 	oam_dma: OamDma,
+	timer: Timer,
 	pub gpu: Gpu,
 	pub interrupt: InterruptHandler,
 	pub joypad: Joypad,
@@ -25,6 +27,7 @@ impl Interconnect {
 			gpu: Gpu::new(),
 			wram: Wram::new(),
 			hram: Hram::new(),
+			timer: Timer::new(),
 			oam_dma: OamDma::new(),
 			interrupt: InterruptHandler::new(),
 			joypad: Joypad::new(),
@@ -75,6 +78,7 @@ impl Interconnect {
 	// Take the latest number of machine cycles and keep other hardware in sync
 	pub fn cycles(&mut self, cycles: usize, video_sink: &mut VideoSink) {
 		self.gpu.cycles(cycles, &mut self.interrupt, video_sink);
+		self.timer.cycles(cycles, &mut self.interrupt);
 		self.perform_dma(cycles);
 	}
 
@@ -99,6 +103,10 @@ impl Interconnect {
 			STAT => Some(self.gpu.STAT.get()),
 			LYC => Some(self.gpu.LYC.get()),
 			LY => Some(self.gpu.LY.get()),
+			DIV => Some(self.timer.read_div()),
+			TIMA => Some(self.timer.read_counter()),
+			TMA => Some(self.timer.read_modulo()),
+			TAC => Some(self.timer.read_control()),
 			_ => None
 		}
 	}
@@ -110,6 +118,10 @@ impl Interconnect {
 			BGP | OBP0 | OBP1 | LCDC | STAT | LY | LYC => self.gpu.write(address, data),
 			OAM_DMA => self.oam_dma.request(data),
 			IE | IF => self.interrupt.write(address, data),
+			DIV => self.timer.write_div(data),
+			TIMA => self.timer.write_counter(data),
+			TMA => self.timer.write_modulo(data),
+			TAC => self.timer.write_control(data),
 			_ => found = false,
 		}
 		found
