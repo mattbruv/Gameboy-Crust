@@ -3,7 +3,8 @@ use core::rom::*;
 use core::sink::*;
 use core::joypad::*;
 use minifb::{Key, WindowOptions, Window, Scale, KeyRepeat};
-use std::{thread, time};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const CLOCK_SPEED: i32 = 4194304;
 const FRAME_RATE: i32 = 60;
@@ -32,10 +33,20 @@ impl Emulator {
 	pub fn run(&mut self) {
 
 		let mut tile_window: Option<Window> = None;
+		let mut multiplier = 10;
+		let mut overclock = false;
 
 		while self.window.is_open() && !self.window.is_key_down(Key::Escape) {
+
+			let start_time = Instant::now();
+			let frame_time = Duration::new(0, 16600000); // 16.6 ms as nanoseconds
+
 			let mut video_sink = VideoSink::new();
-			let cycles_per_frame = CLOCK_SPEED / FRAME_RATE;
+			let mut clock_speed = CLOCK_SPEED;
+			if overclock {
+				clock_speed *= multiplier;
+			}
+			let cycles_per_frame = clock_speed / FRAME_RATE;
 			let mut emulated_cycles = 0;
 
 			while emulated_cycles <= cycles_per_frame {
@@ -50,11 +61,17 @@ impl Emulator {
 				if self.window.is_key_pressed(Key::D, KeyRepeat::No) {
 					self.debug();
 				}
+				overclock = self.window.is_key_down(Key::Space);
 				self.read_input();
 				self.vram_loop(&mut tile_window);
 			}
 
-			thread::sleep(time::Duration::from_millis(3));
+			// We have done our calculations, wait the remaning time
+			let elapsed_time = start_time.elapsed();
+			if !(elapsed_time > frame_time) {
+				let remaining_time = frame_time - elapsed_time;
+				thread::sleep(remaining_time);
+			}
 		}
 
 		self.gameboy.cpu.debug();

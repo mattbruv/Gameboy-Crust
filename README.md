@@ -28,6 +28,7 @@ Once the project is completed, official releases will be compiled and released [
 | D-Pad Left | <kbd>🡰</kbd> |
 | D-Pad Right | <kbd>🡲</kbd> |
 | View VRAM | <kbd>V</kbd> |
+| Speed x10 | <kbd>Space</kbd> |
 
 ## Feature Checklist
 A checklist of all the planned system components as I complete them. The entries with check marks have been started on. *Italic* entries still need work.
@@ -43,7 +44,7 @@ A checklist of all the planned system components as I complete them. The entries
 - [X] Joypad Input
 - [ ] Audio Output
 - [ ] Link Cable (via networking?)
-- [ ] CPU overclocking
+- [X] CPU overclocking
 - [ ] Hardware Save States
 - [ ] SRAM Save States
 - [ ] Gameshark/Genie Cheats
