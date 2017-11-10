@@ -23,7 +23,8 @@ enum RstVector {
 }
 
 pub struct CPU {
-	pub regs: Registers
+	pub regs: Registers,
+	halted: bool,
 }
 
 impl CPU {
@@ -32,6 +33,7 @@ impl CPU {
 	pub fn new() -> CPU {
 		CPU {
 			regs: Registers::new(),
+			halted: false,
 		}
 	}
 
@@ -53,6 +55,10 @@ impl CPU {
 	pub fn step(&mut self, memory: &mut Interconnect) -> usize {
 
 		self.handle_interrupts(memory);
+
+		if self.halted {
+			return 1;
+		}
 
 		let old_pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
@@ -388,6 +394,8 @@ impl CPU {
 			0x37 => { self.scf(); 1 },
 			// ccf
 			0x3F => { self.ccf(); 1 },
+			// HALT
+			0x76 => { self.halted = true; 1 },
 			// NOP
 			0x00 => { 1 }, // easiest opcode of my life
 
@@ -1031,6 +1039,7 @@ impl CPU {
 
 	fn handle_interrupts(&mut self, memory: &mut Interconnect) {
 		if let Some(vector) = memory.interrupt.execute_next() {
+			self.halted = false;
 			self.call(memory, vector as u16);
 		}
 	}

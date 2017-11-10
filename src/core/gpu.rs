@@ -513,6 +513,8 @@ impl Gpu {
 				panic!("LCD off, but not in VBlank");
 			}
 			self.LY.clear();
+			// Set stat mode to 0 to let game know it is safe to write to RAM
+			self.set_mode(StatusMode::HBlank);
 		}
 		self.LCDC.set(data);
 	}
