@@ -112,7 +112,7 @@ impl Gpu {
 			tile_cache: vec![TileEntry::new(); 384],
 			sprite_table: vec![SpriteEntry::new(); 40],
 			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
-			LCDC: MemoryRegister::new(0x00),
+			LCDC: MemoryRegister::new(0x91),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
 			LY: MemoryRegister::new(0x00),
@@ -127,10 +127,10 @@ impl Gpu {
 	// Converts a 0-3 shade to the appropriate 32bit palette color
 	fn colorize(&mut self, shade: u8) -> u32 {
 		let palette = [
-			0xFFFFFF, // 0 White
+			0xEEEEEE, // 0 White
 			0x999999, // 1 Light Gray
-			0x333333, // 2 Dark Gray
-			0x000000, // 3 Black
+			0x666666, // 2 Dark Gray
+			0x222222, // 3 Black
 		];
 		let pal_data = self.BGP.get();
 		let real_shade = match shade {
@@ -289,8 +289,16 @@ impl Gpu {
 
 	// Draw the current scanline on the internal framebuffer
 	fn update_scanline(&mut self) {
-		self.draw_background();
-		self.draw_sprites();
+
+		// If BG enabled, draw it
+		if self.LCDC.is_set(Bit::Bit0) {
+			self.draw_background();
+		}
+
+		// If sprites are enabled, draw them
+		if self.LCDC.is_set(Bit::Bit1) {
+			self.draw_sprites();
+		}
 	}
 
 	#[inline]
@@ -366,18 +374,28 @@ impl Gpu {
 			}
 
 			let tile = &self.tile_cache[sprite.tile_id as usize];
-			//rintln!("x: {}", sprite_x);
 
 			for pixel_x in 0..8 {
-				let pixel = tile.pixels[(((scanline_y % 8) * 8) + pixel_x) as usize];
+
+				let pixel_y = scanline_y - sprite_y;
+
+				// Flip the X/Y rendering if necessary
+				let lookup_x = match sprite.x_flip {
+					true  => ((pixel_x as i8 - 7) * -1) as u8,
+					false => pixel_x
+				};
+				let lookup_y = match sprite.y_flip {
+					true  => ((pixel_y as i8 - 7) * -1) as u8,
+					false => pixel_y
+				};
+
+				let pixel = tile.pixels[((lookup_y * 8) + lookup_x) as usize];
 				let offset_x = sprite_x as i32 + pixel_x as i32;
 				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
 				let offset = offset_y + offset_x;
 				self.frame_buffer[offset as usize] = pixel;
 			}
 		}
-
-
 	}
 
 	// Translates a location in VRAM to the relevant tile cache ID

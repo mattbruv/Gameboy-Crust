@@ -117,7 +117,7 @@ DE: ${:02X}{:02X}
 HL: ${:02X}{:02X}
 SP: ${:04X}
 PC: ${:04X}
-Flags: {}{}{}{}", 
+Flags: {}{}{}{}",
 			self.a, self.f,
 			self.b, self.c,
 			self.d, self.e,

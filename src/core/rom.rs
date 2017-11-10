@@ -18,7 +18,7 @@ impl Rom {
 		let mut file = File::open(path).expect("Invalid ROM path");
 		file.read_to_end(&mut buffer).expect("Unable to read ROM");
 		let cart_type = buffer[0x147];
-		
+
 		Rom {
 			controller: match cart_type {
 				0x00 => Box::new(mbc0::MBC0),
@@ -105,7 +105,7 @@ Cartridge Type: ${:02X} - {}
 				_ => ""
 			},
 			self.rom_size(),
-			match self.rom_size() {				
+			match self.rom_size() {
 				0x00 => "32KByte (no ROM banking)",
 				0x01 => "64KByte (4 banks)",
 				0x02 => "128KByte (8 banks)",
