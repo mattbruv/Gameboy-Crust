@@ -50,7 +50,6 @@ impl Timer {
             if self.timer_counter <= 0 {
                 let timer_value = self.TIMA.get();
                 self.set_frequency(new_freq);
-                println!("{}", timer_value);
 
                 // If TIMA overflows
                 if (timer_value == 255) {

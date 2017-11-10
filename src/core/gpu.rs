@@ -319,8 +319,9 @@ impl Gpu {
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
-					let direction = (tile_pattern as i16 * 16) as u16;
-					tile_data_location + direction
+					let adjusted = ((tile_pattern as i8) as i16) * 16;
+					let path = (tile_data_location as i16) + adjusted;
+					path as u16
 				}, // $8800-97FF (signed, so we start in the middle)
 				true  => {
 					(tile_pattern as u16 * 16) + tile_data_location
