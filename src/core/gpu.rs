@@ -44,7 +44,7 @@ enum StatusInterrupt {
 #[derive(Clone, Debug)]
 struct TileEntry {
 	dirty: bool,
-	pixels: Vec<u32>,
+	pixels: Vec<u8>,
 }
 
 impl TileEntry {
@@ -65,7 +65,7 @@ struct SpriteEntry {
 	behind_background: bool,
 	x_flip: bool,
 	y_flip: bool,
-	palette_zero: bool,
+	use_palette_one: bool,
 }
 
 impl SpriteEntry {
@@ -77,7 +77,7 @@ impl SpriteEntry {
 			behind_background: false,
 			x_flip: false,
 			y_flip: false,
-			palette_zero: false,
+			use_palette_one: false,
 		}
 	}
 }
@@ -125,22 +125,21 @@ impl Gpu {
 	}
 
 	// Converts a 0-3 shade to the appropriate 32bit palette color
-	fn colorize(&mut self, shade: u8) -> u32 {
-		let palette = [
+	fn colorize(&self, shade: u8, palette: u8) -> u32 {
+		let color_values = [
 			0xEEEEEE, // 0 White
 			0x999999, // 1 Light Gray
 			0x666666, // 2 Dark Gray
 			0x222222, // 3 Black
 		];
-		let pal_data = self.BGP.get();
 		let real_shade = match shade {
-			0 =>  pal_data & 0b00000011,
-			1 => (pal_data & 0b00001100) >> 2,
-			2 => (pal_data & 0b00110000) >> 4,
-			3 => (pal_data & 0b11000000) >> 6,
+			0 =>  palette & 0b00000011,
+			1 => (palette & 0b00001100) >> 2,
+			2 => (palette & 0b00110000) >> 4,
+			3 => (palette & 0b11000000) >> 6,
 			_ => panic!("Invalid Palette Shade!")
 		};
-		palette[real_shade as usize]
+		color_values[real_shade as usize]
 	}
 
 	// Returns a 128x192px display for entire tile cache for debugging
@@ -151,6 +150,7 @@ impl Gpu {
 		let width = 128;
 		let height = 192;
 		let mut display = vec![0xFF00FF; width * height];
+		let palette = self.BGP.get();
 		// Loop entire VRAM as tiles
 		for index in 0..384 {
 
@@ -158,11 +158,10 @@ impl Gpu {
 				self.refresh_tile(index);
 			}
 
-			let entry = &self.tile_cache[index];
-
 			for y in 0..8 {
 				for x in 0..8 {
-					let color = entry.pixels[(y * 8) + x];
+					let raw_pixel = self.tile_cache[index].pixels[(y * 8) + x];
+					let color = self.colorize(raw_pixel, palette);
 					let column = index % 16;
 					let row = index / 16;
 					let width_offset = (column * 8) + x;
@@ -197,7 +196,7 @@ impl Gpu {
 
 				let combined = (high_bit << 1) | low_bit;
 
-				tile[((y * 8) + x_flip as u16) as usize] = self.colorize(combined);
+				tile[((y * 8) + x_flip as u16) as usize] = combined;
 
 				x -= 1;
 			}
@@ -289,20 +288,23 @@ impl Gpu {
 
 	// Draw the current scanline on the internal framebuffer
 	fn update_scanline(&mut self) {
-
+		// A helper vector to determine sprite priority relative to bg
+		// set to true if bg pixel = any color but zero
+		let mut bg_priority = vec![false; FRAME_WIDTH];
 		// If BG enabled, draw it
 		if self.LCDC.is_set(Bit::Bit0) {
-			self.draw_background();
+			self.draw_background(&mut bg_priority);
 		}
 
 		// If sprites are enabled, draw them
 		if self.LCDC.is_set(Bit::Bit1) {
-			self.draw_sprites();
+			self.draw_sprites(&mut bg_priority);
 		}
 	}
 
 	#[inline]
-	fn draw_background(&mut self) {
+	fn draw_background(&mut self, bg_priority: &mut Vec<bool>) {
+		let palette = self.BGP.get();
 		// BG Tile Map Display Select
 		let tile_map_location = match self.LCDC.is_set(Bit::Bit3) {
 			true  => 0x9C00,
@@ -347,13 +349,14 @@ impl Gpu {
 			for tile_x in 0..8 {
 				let pixel = self.tile_cache[tile_id].pixels[((tile_y * 8) + tile_x) as usize];
 				let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
-				self.frame_buffer[buffer_offset as usize] = pixel;
+				if pixel != 0 { bg_priority[((map_x as u16 * 8) + tile_x as u16) as usize] = true; }
+				self.frame_buffer[buffer_offset as usize] = self.colorize(pixel, palette);
 			}
 		}
 	}
 
 	#[inline]
-	fn draw_sprites(&mut self) {
+	fn draw_sprites(&mut self, bg_priority: &mut Vec<bool>) {
 
 		// Only 10 sprites can be displayed per scanline
 		let scanline_y = self.LY.get();
@@ -362,7 +365,7 @@ impl Gpu {
 		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
 			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + 7
-		}).rev().take(10);
+		}).take(10);
 
 		// Draw the damn thing
 		for sprite in iter {
@@ -374,6 +377,10 @@ impl Gpu {
 			}
 
 			let tile = &self.tile_cache[sprite.tile_id as usize];
+			let palette = match sprite.use_palette_one {
+				false => self.OBP0.get(),
+				true  => self.OBP1.get(),
+			};
 
 			for pixel_x in 0..8 {
 
@@ -390,10 +397,18 @@ impl Gpu {
 				};
 
 				let pixel = tile.pixels[((lookup_y * 8) + lookup_x) as usize];
+				if pixel == 0 { continue; } // Color zero is ignored when drawing sprites
+				// Do not draw over background priority
+				if sprite.behind_background {
+					if bg_priority[(sprite_x + pixel_x) as usize] {
+						return;
+					}
+				}
+				let color = self.colorize(pixel, palette);
 				let offset_x = sprite_x as i32 + pixel_x as i32;
 				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
 				let offset = offset_y + offset_x;
-				self.frame_buffer[offset as usize] = pixel;
+				self.frame_buffer[offset as usize] = color;
 			}
 		}
 	}
@@ -517,7 +532,7 @@ impl Gpu {
 				sprite.behind_background = (data & Bit::Bit7 as u8) > 0;
 				sprite.y_flip = (data & Bit::Bit6 as u8) > 0;
 				sprite.x_flip = (data & Bit::Bit5 as u8) > 0;
-				sprite.palette_zero = (data & Bit::Bit4 as u8) > 0;
+				sprite.use_palette_one = (data & Bit::Bit4 as u8) > 0;
 			},
 			_ => unreachable!()
 		};
