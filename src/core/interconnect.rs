@@ -66,8 +66,8 @@ impl Interconnect {
 			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
 			ECHO_START ... ECHO_END => {
 				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.
-				// self.wram.write(address - ECHO_START, data)
-				panic!("Attempt to write to ECHO RAM");
+				self.wram.write(address - ECHO_START, data);
+				//panic!("Attempt to write to ECHO RAM");
 			},
 			OAM_START  ... OAM_END  => self.gpu.write(address, data),
 			HRAM_START ... HRAM_END => self.hram.write(address - HRAM_START, data),

@@ -194,7 +194,7 @@ impl CPU {
 			0xE1 => { let qq = self.pop(memory); self.regs.set_hl(qq); 3 },
 			0xF1 => { let qq = self.pop(memory); self.regs.set_af(qq); 3 },
 			// LD SP, e (e = imm8 -128 to +127)
-			0xF8 => { unimplemented!(); },
+			0xF8 => { let e = self.next_byte(memory); self.ld_hl(e); 3 },
 			// LD (nn), SP
 			0x08 => {
 				let nn = self.next_pointer(memory);
@@ -927,6 +927,17 @@ impl CPU {
 		let half_carry = (((hl & 0xFFF) + (n & 0xFFF)) & 0x1000) != 0;
 		self.regs.set_flag(Flag::Carry, hl > 0xFFFF - n);
 		self.regs.set_flag(Flag::HalfCarry, half_carry);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.set_hl(result);
+	}
+
+	fn ld_hl(&mut self, n: u8) {
+		let signed_val = (n as i8) as i16;
+		let sp = self.regs.sp;
+		let result = ((sp as i16) + signed_val) as u16;
+		self.regs.set_flag(Flag::Carry, (result & 0xFF) < (sp & 0xFF));
+		self.regs.set_flag(Flag::HalfCarry, (result & 0xF) < (sp & 0xF));
+		self.regs.set_flag(Flag::Zero, false);
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_hl(result);
 	}
