@@ -43,9 +43,9 @@ impl Interconnect {
 
 		// No specific register, read general data
 		match address {
-			ROM_START  ... ROM_END  => self.rom.read(address),
+			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
 			VRAM_START ... VRAM_END => self.gpu.read(address),
-			ERAM_START ... ERAM_END => panic!("Read from ERAM not implemented"),
+			ERAM_START ... ERAM_END => self.rom.read(address),
 			WRAM_START ... WRAM_END => self.wram.read(address - WRAM_START),
 			ECHO_START ... ECHO_END => self.wram.read(address - ECHO_START),
 			OAM_START  ... OAM_END  => self.gpu.read(address),
@@ -60,9 +60,9 @@ impl Interconnect {
 			return;
 		}
 		match address {
-			ROM_START  ... ROM_END  => self.rom.write(address, data),
+			ROM_START  ... ROM_BANK_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => self.gpu.write(address, data),
-			ERAM_START ... ERAM_END => panic!("Write to ERAM not implemented ${:04X}", address),
+			ERAM_START ... ERAM_END => self.rom.write(address, data),
 			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
 			ECHO_START ... ECHO_END => {
 				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.

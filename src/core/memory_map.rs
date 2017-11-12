@@ -45,7 +45,10 @@ pub const IE: u16      = 0xFFFF; // Interrupt Enable
 
 // 16 KB ROM Bank 00 (in cartridge, fixed at bank 00)
 pub const ROM_START: u16 = 0x0000;
-pub const ROM_END: u16   = 0x7FFF;
+pub const ROM_END: u16   = 0x3FFF;
+
+pub const ROM_BANK_START: u16 = 0x4000;
+pub const ROM_BANK_END: u16   = 0x7FFF;
 
 // 8KB Video RAM (VRAM)
 pub const VRAM_START: u16 = 0x8000;

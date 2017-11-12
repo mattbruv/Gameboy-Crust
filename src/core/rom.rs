@@ -35,7 +35,7 @@ impl Rom {
 		self.controller.read(&self.bytes, address)
 	}
 
-	pub fn write(&self, address: u16, data: u8) {
+	pub fn write(&mut self, address: u16, data: u8) {
 		self.controller.write(address, data);
 	}
 
