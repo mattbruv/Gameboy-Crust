@@ -543,7 +543,7 @@ impl Gpu {
 
 		if !new.is_set(Bit::Bit7) && self.display_enabled() {
 			if self.get_mode() != StatusMode::VBlank {
-				panic!("LCD off, but not in VBlank");
+				//panic!("LCD off, but not in VBlank");
 			}
 			self.LY.clear();
 			// Set stat mode to 0 to let game know it is safe to write to RAM
