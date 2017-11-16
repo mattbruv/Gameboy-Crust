@@ -208,9 +208,15 @@ impl CPU {
 			0xC1 => { let qq = self.pop(memory); self.regs.set_bc(qq); 3 },
 			0xD1 => { let qq = self.pop(memory); self.regs.set_de(qq); 3 },
 			0xE1 => { let qq = self.pop(memory); self.regs.set_hl(qq); 3 },
-			0xF1 => { let qq = self.pop(memory); self.regs.set_af(qq); 3 },
+			0xF1 => {
+				// Lower 4 bits of register F (unused flag bits) are set to zero
+				let qq = self.pop(memory) & 0xFFF0;
+				self.regs.set_af(qq);
+				3
+			},
 			// LD SP, e (e = imm8 -128 to +127)
-			0xF8 => { let e = self.next_byte(memory); self.ld_hl(e); 3 },
+			0xF8 => {
+				let e = self.next_byte(memory); self.ld_hl(e); 3 },
 			// LD (nn), SP
 			0x08 => {
 				let nn = self.next_pointer(memory);
