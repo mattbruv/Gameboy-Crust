@@ -347,7 +347,7 @@ impl CPU {
 			0x29 => { let rr = self.regs.hl(); self.add_hl(rr); 2 },
 			0x39 => { let rr = self.regs.sp;   self.add_hl(rr); 2 },
 			// ADD SP, e
-			0xE8 => { unimplemented!(); },
+			0xE8 => { let e = self.next_byte(memory); self.ld_sp(e); 4 },
 			// INC ss (no flags changed here)
 			0x03 => { let rr = self.regs.bc().wrapping_add(1); self.regs.set_bc(rr); 2 },
 			0x13 => { let rr = self.regs.de().wrapping_add(1); self.regs.set_de(rr); 2 },
@@ -921,6 +921,7 @@ impl CPU {
 
 	fn daa(&mut self) {
 		let mut carry = false;
+		return;
 		if !self.regs.is_flag_set(Flag::Sub) {
 			if self.regs.is_flag_set(Flag::Carry) || self.regs.a > 0x99 {
 				self.regs.a = self.regs.a.wrapping_add(0x60);
@@ -958,6 +959,17 @@ impl CPU {
 		self.regs.set_flag(Flag::HalfCarry, half_carry);
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_hl(result);
+	}
+
+	fn ld_sp(&mut self, n: u8) {
+		let signed_val = (n as i8) as i16;
+		let sp = self.regs.sp;
+		let result = ((sp as i16) + signed_val) as u16;
+		self.regs.set_flag(Flag::Carry, (result & 0xFF) < (sp & 0xFF));
+		self.regs.set_flag(Flag::HalfCarry, (result & 0xF) < (sp & 0xF));
+		self.regs.set_flag(Flag::Zero, false);
+		self.regs.set_flag(Flag::Sub, false);
+		self.regs.sp = result;
 	}
 
 	fn ld_hl(&mut self, n: u8) {
