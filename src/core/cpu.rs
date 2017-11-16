@@ -110,16 +110,16 @@ impl CPU {
 			0x60 => { self.regs.h = self.regs.b; 1 },
 			0x61 => { self.regs.h = self.regs.c; 1 },
 			0x62 => { self.regs.h = self.regs.d; 1 },
-			0x63 => { self.regs.h = self.regs.h; 1 },
+			0x63 => { self.regs.h = self.regs.e; 1 },
 			0x64 => { 1 }, // LD H, H
 			0x65 => { self.regs.h = self.regs.l; 1 },
 			0x6F => { self.regs.l = self.regs.a; 1 },
 			0x68 => { self.regs.l = self.regs.b; 1 },
 			0x69 => { self.regs.l = self.regs.c; 1 },
 			0x6A => { self.regs.l = self.regs.d; 1 },
-			0x6B => { self.regs.l = self.regs.h; 1 },
-			0x6D => { self.regs.l = self.regs.l; 1 },
-			0x6C => { 1 }, // LD L, L
+			0x6B => { self.regs.l = self.regs.e; 1 },
+			0x6C => { self.regs.l = self.regs.h; 1 },
+			0x6D => { 1 }, // LD L, L
 			// LD r, n
 			0x3E => { self.regs.a = self.next_byte(memory); 2 },
 			0x06 => { self.regs.b = self.next_byte(memory); 2 },
@@ -839,11 +839,11 @@ impl CPU {
 		let bit7 = n >> 7;
 		let result = match include_carry {
 			true =>  {
-				self.regs.set_flag(Flag::Carry, (bit7 == 1));
 				(n << 1) | (self.regs.is_flag_set(Flag::Carry) as u8)
 			},
 			false => n.rotate_left(1),
 		};
+		self.regs.set_flag(Flag::Carry, (bit7 == 1));
 		self.regs.set_flag(Flag::HalfCarry, false);
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_flag(Flag::Zero, (result == 0 && update_zero));
@@ -854,11 +854,11 @@ impl CPU {
 		let bit1 = n & 1;
 		let result = match include_carry {
 			true =>  {
-				self.regs.set_flag(Flag::Carry, (bit1 == 1));
 				(n >> 1) | ((self.regs.is_flag_set(Flag::Carry) as u8) << 7)
 			},
 			false => n.rotate_right(1),
 		};
+		self.regs.set_flag(Flag::Carry, (bit1 == 1));
 		self.regs.set_flag(Flag::HalfCarry, false);
 		self.regs.set_flag(Flag::Sub, false);
 		self.regs.set_flag(Flag::Zero, (result == 0 && update_zero));
