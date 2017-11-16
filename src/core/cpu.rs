@@ -436,7 +436,6 @@ impl CPU {
 		let pc = self.regs.pc;
 		let opcode = self.next_byte(memory);
 		let regs = self.regs;
-
 		match opcode {
 			// Rotate Left
 			0x07 => { self.regs.a = self.rotate_left(regs.a, false, true); 2 },
