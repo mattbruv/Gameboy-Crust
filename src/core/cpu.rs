@@ -448,8 +448,9 @@ impl CPU {
 			0x05 => { self.regs.l = self.rotate_left(regs.l, false, true); 2 },
 			0x06 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_left(n, false, false));
-			4 },
+				memory.write(regs.hl(), self.rotate_left(n, false, true));
+				4
+			},
 			0x17 => { self.regs.a = self.rotate_left(regs.a, true, true); 2 },
 			0x10 => { self.regs.b = self.rotate_left(regs.b, true, true); 2 },
 			0x11 => { self.regs.c = self.rotate_left(regs.c, true, true); 2 },
@@ -459,8 +460,9 @@ impl CPU {
 			0x15 => { self.regs.l = self.rotate_left(regs.l, true, true); 2 },
 			0x16 => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_left(n, true, false));
-			4 },
+				memory.write(regs.hl(), self.rotate_left(n, true, true));
+				4
+			},
 			// Rotate Right
 			0x0F => { self.regs.a = self.rotate_right(regs.a, false, true); 2 },
 			0x08 => { self.regs.b = self.rotate_right(regs.b, false, true); 2 },
@@ -471,8 +473,9 @@ impl CPU {
 			0x0D => { self.regs.l = self.rotate_right(regs.l, false, true); 2 },
 			0x0E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_right(n, false, false));
-			4 },
+				memory.write(regs.hl(), self.rotate_right(n, false, true));
+				4
+			},
 			0x1F => { self.regs.a = self.rotate_right(regs.a, true, true); 2 },
 			0x18 => { self.regs.b = self.rotate_right(regs.b, true, true); 2 },
 			0x19 => { self.regs.c = self.rotate_right(regs.c, true, true); 2 },
@@ -482,7 +485,7 @@ impl CPU {
 			0x1D => { self.regs.l = self.rotate_right(regs.l, true, true); 2 },
 			0x1E => {
 				let n = memory.read(regs.hl());
-				memory.write(regs.hl(), self.rotate_right(n, true, false));
+				memory.write(regs.hl(), self.rotate_right(n, true, true));
 			4 },
 			// Shift Left
 			0x27 => { self.regs.a = self.shift_left(regs.a); 2 },
