@@ -418,6 +418,8 @@ impl CPU {
 			0x3F => { self.ccf(); 1 },
 			// HALT
 			0x76 => { self.halted = true; 1 },
+			// STOP
+			0x10 => { 1 },
 			// NOP
 			0x00 => { 1 }, // easiest opcode of my life
 
