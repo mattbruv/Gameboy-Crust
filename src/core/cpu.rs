@@ -921,33 +921,25 @@ impl CPU {
 		(!(bit as u8) & n)
 	}
 
+	// credit to rboy
+	// DAA was a pain in the ass last time I made an emulator
+	// and I would rather not go through the mental torture of figuring it out again
 	fn daa(&mut self) {
-		let mut carry = false;
-		return;
+		let mut a = self.regs.a;
+		let mut adjust = if self.regs.is_flag_set(Flag::Carry) { 0x60 } else { 0x00 };
+		if self.regs.is_flag_set(Flag::HalfCarry) { adjust |= 0x06; };
 		if !self.regs.is_flag_set(Flag::Sub) {
-			if self.regs.is_flag_set(Flag::Carry) || self.regs.a > 0x99 {
-				self.regs.a = self.regs.a.wrapping_add(0x60);
-				carry = true;
-			}
-			if self.regs.is_flag_set(Flag::HalfCarry) || self.regs.a & 0x0F > 0x09 {
-				self.regs.a = self.regs.a.wrapping_add(0x06);
-			}
-		} else if self.regs.is_flag_set(Flag::Carry) {
-			carry = true;
-			self.regs.a = self.regs.a.wrapping_add(
-				match self.regs.is_flag_set(Flag::HalfCarry) {
-					true =>  0x9A,
-					false => 0xA0,
-				}
-			);
-		} else if self.regs.is_flag_set(Flag::HalfCarry) {
-			self.regs.a = self.regs.a.wrapping_add(0xFA);
+			if a & 0x0F > 0x09 { adjust |= 0x06 };
+			if a > 0x99 { adjust |= 0x60 };
+			a = a.wrapping_add(adjust);
+		} else {
+			a = a.wrapping_sub(adjust);
 		}
-		let a = self.regs.a;
-		let sub = self.regs.is_flag_set(Flag::Sub);
-		self.regs.set_flag(Flag::Zero, (a == 0));
-		self.regs.set_flag(Flag::Sub, sub);
-		self.regs.set_flag(Flag::Carry, carry);
+
+		self.regs.set_flag(Flag::Carry, adjust >= 0x60);
+		self.regs.set_flag(Flag::HalfCarry, false);
+		self.regs.set_flag(Flag::Zero, a == 0);
+		self.regs.a = a;
 	}
 
 	/* 16-bit operations */
