@@ -151,13 +151,29 @@ impl CPU {
 			// LD A, (DE)
 			0x1A => { self.regs.a = memory.read(self.regs.de()); 2 },
 			// LD A, (C)
-			0xF2 => { self.regs.a = memory.read((0xFF00 as u16).wrapping_add(self.regs.c as u16)); 2 },
+			0xF2 => {
+				let offset = 0xFF00 | self.regs.c as u16;
+				self.regs.a = memory.read(offset);
+				2
+			},
 			// LD (C), A
-			0xE2 => { memory.write((0xFF00 as u16).wrapping_add(self.regs.c as u16), self.regs.a); 2 },
+			0xE2 => {
+				let offset = 0xFF00 | self.regs.c as u16;
+				memory.write(offset, self.regs.a);
+				2
+			},
 			// LD A, (n)
-			0xF0 => { self.regs.a = memory.read((0xFF00 as u16).wrapping_add(self.next_byte(memory) as u16)); 3 },
+			0xF0 => {
+				let offset = 0xFF00 | self.next_byte(memory) as u16;
+				self.regs.a = memory.read(offset);
+				3
+			},
 			// LD (n), A
-			0xE0 => { let n = self.next_byte(memory); memory.write((0xFF00 as u16).wrapping_add(n as u16), self.regs.a); 3 },
+			0xE0 => {
+				let offset = 0xFF00 | self.next_byte(memory) as u16;
+				memory.write(offset, self.regs.a);
+				3
+			},
 			// LD A, (nn)
 			0xFA => { self.regs.a = memory.read(self.next_pointer(memory)); 4 },
 			// LD (nn), A
@@ -199,7 +215,7 @@ impl CPU {
 			0x08 => {
 				let nn = self.next_pointer(memory);
 				memory.write(nn, low!(self.regs.sp));
-				memory.write(nn.wrapping_add(1), high!(self.regs.sp));
+				memory.write(nn + 1, high!(self.regs.sp));
 				5
 			},
 			// 8-bit Arithmetic
