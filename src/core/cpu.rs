@@ -486,7 +486,8 @@ impl CPU {
 			0x1E => {
 				let n = memory.read(regs.hl());
 				memory.write(regs.hl(), self.rotate_right(n, true, true));
-			4 },
+				4
+			},
 			// Shift Left
 			0x27 => { self.regs.a = self.shift_left(regs.a); 2 },
 			0x20 => { self.regs.b = self.shift_left(regs.b); 2 },
@@ -498,7 +499,8 @@ impl CPU {
 			0x26 => {
 				let n = memory.read(regs.hl());
 				memory.write(regs.hl(), self.shift_left(n));
-			4 },
+				4
+			},
 			// Shift Right
 			0x2F => { self.regs.a = self.shift_right(regs.a, true); 2 },
 			0x28 => { self.regs.b = self.shift_right(regs.b, true); 2 },
@@ -510,7 +512,8 @@ impl CPU {
 			0x2E => {
 				let n = memory.read(regs.hl());
 				memory.write(regs.hl(), self.shift_right(n, true));
-			4 },
+				4
+			},
 			0x3F => { self.regs.a = self.shift_right(regs.a, false); 2 },
 			0x38 => { self.regs.b = self.shift_right(regs.b, false); 2 },
 			0x39 => { self.regs.c = self.shift_right(regs.c, false); 2 },
@@ -521,7 +524,8 @@ impl CPU {
 			0x3E => {
 				let n = memory.read(regs.hl());
 				memory.write(regs.hl(), self.shift_right(n, false));
-			4 },
+				4
+			},
 			// Swap
 			0x37 => { self.regs.a = self.swap(regs.a); 2 },
 			0x30 => { self.regs.b = self.swap(regs.b); 2 },
@@ -533,7 +537,8 @@ impl CPU {
 			0x36 => {
 				let n = memory.read(regs.hl());
 				memory.write(regs.hl(), self.swap(n));
-			4 },
+				4
+			},
 			// Bit
 			0x47 => { self.bit(regs.a, Bit::Bit0); 2 },
 			0x4F => { self.bit(regs.a, Bit::Bit1); 2 },
