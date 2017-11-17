@@ -35,12 +35,12 @@ impl MemoryController for MBC1 {
 			},
 			ROM_BANK_START ... ROM_BANK_END => {
 				let index = address - ROM_BANK_START;
-				let offset = (self.rom_bank as u16 * 0x4000) + index;
+				let offset = (0x4000 as u32 * self.rom_bank as u32) + index as u32;
 				bytes[offset as usize]
 			},
 			ERAM_START ... ERAM_END => {
 				let index = address - ERAM_START;
-				let offset = (self.ram_bank as u16 * 0x2000) + index;
+				let offset = (0x2000 as u32 * self.ram_bank as u32) + index as u32;
 				self.eram[offset as usize]
 			},
 			_ => unreachable!(),
@@ -93,7 +93,7 @@ impl MemoryController for MBC1 {
 			ERAM_START ... ERAM_END => {
 				// RAM bank zero can always be used no matter what mode
 				let index = address - ERAM_START;
-				let offset = (self.ram_bank as u16 * 0x2000) + index;
+				let offset = (0x2000 as u32 * self.ram_bank as u32) + index as u32;
 				self.eram[offset as usize] = data;
 			}
 			_ => unreachable!(),

@@ -958,7 +958,7 @@ impl CPU {
 	fn ld_sp(&mut self, n: u8) {
 		let signed_val = (n as i8) as i16;
 		let sp = self.regs.sp;
-		let result = ((sp as i16) + signed_val) as u16;
+		let result = ((sp as i16).wrapping_add(signed_val)) as u16;
 		self.regs.set_flag(Flag::Carry, (result & 0xFF) < (sp & 0xFF));
 		self.regs.set_flag(Flag::HalfCarry, (result & 0xF) < (sp & 0xF));
 		self.regs.set_flag(Flag::Zero, false);
@@ -969,7 +969,7 @@ impl CPU {
 	fn ld_hl(&mut self, n: u8) {
 		let signed_val = (n as i8) as i16;
 		let sp = self.regs.sp;
-		let result = ((sp as i16) + signed_val) as u16;
+		let result = ((sp as i16).wrapping_add(signed_val)) as u16;
 		self.regs.set_flag(Flag::Carry, (result & 0xFF) < (sp & 0xFF));
 		self.regs.set_flag(Flag::HalfCarry, (result & 0xF) < (sp & 0xF));
 		self.regs.set_flag(Flag::Zero, false);
