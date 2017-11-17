@@ -360,40 +360,55 @@ impl Gpu {
 
 		// Only 10 sprites can be displayed per scanline
 		let scanline_y = self.LY.get();
+		let tall_sprite_mode = self.LCDC.is_set(Bit::Bit2);
+		let sprite_y_max = match tall_sprite_mode {
+			true => 15, // 0-15 y pixels for 8x16 sprites
+			false => 7 // 0-7 y pixels for 8x8 sprites
+		};
 
 		// Get all the sprites with a Y range that intersects with the current scanline
 		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
-			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + 7
+			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + sprite_y_max
 		}).take(10);
 
 		// Draw the damn thing
 		for sprite in iter {
 			let sprite_x = sprite.x_pos;
 			let sprite_y = sprite.y_pos;
+			let pixel_y = (scanline_y - sprite_y) % 8;
+			let lookup_y = match sprite.y_flip {
+				true  => ((pixel_y as i8 - 7) * -1) as u8,
+				false => pixel_y
+			};
 
-			if self.tile_cache[sprite.tile_id as usize].dirty {
-				self.refresh_tile(sprite.tile_id as usize);
+			let tile_id = match tall_sprite_mode {
+				true => {
+					// Are we displaying the top half or bottom half?
+					if (scanline_y - sprite_y < 8) { // top half
+						sprite.tile_id & 0xFE
+					} else { // bottom half
+						sprite.tile_id | 0x01
+					}
+				},
+				false => sprite.tile_id,
+			};
+
+			if self.tile_cache[tile_id as usize].dirty {
+				self.refresh_tile(tile_id as usize);
 			}
 
-			let tile = &self.tile_cache[sprite.tile_id as usize];
+			let tile = &self.tile_cache[tile_id as usize];
 			let palette = match sprite.use_palette_one {
 				false => self.OBP0.get(),
 				true  => self.OBP1.get(),
 			};
 
 			for pixel_x in 0..8 {
-
-				let pixel_y = scanline_y - sprite_y;
-
 				// Flip the X/Y rendering if necessary
 				let lookup_x = match sprite.x_flip {
 					true  => ((pixel_x as i8 - 7) * -1) as u8,
 					false => pixel_x
-				};
-				let lookup_y = match sprite.y_flip {
-					true  => ((pixel_y as i8 - 7) * -1) as u8,
-					false => pixel_y
 				};
 
 				let pixel = tile.pixels[((lookup_y * 8) + lookup_x) as usize];
