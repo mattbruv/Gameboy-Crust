@@ -59,8 +59,8 @@ impl TileEntry {
 // Entry for the sprite table
 #[derive(Clone, Debug)]
 struct SpriteEntry {
-	y_pos: u8,
-	x_pos: u8,
+	y_pos: i32,
+	x_pos: i32,
 	tile_id: u8,
 	behind_background: bool,
 	x_flip: bool,
@@ -369,13 +369,13 @@ impl Gpu {
 		// Get all the sprites with a Y range that intersects with the current scanline
 		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
-			scanline_y >= sprite.y_pos && scanline_y <= sprite.y_pos + sprite_y_max
+			scanline_y as i32 >= sprite.y_pos && scanline_y as i32 <= sprite.y_pos + sprite_y_max as i32
 		}).take(10);
 
 		// Draw the damn thing
 		for sprite in iter {
 			let sprite_x = sprite.x_pos;
-			let sprite_y = sprite.y_pos;
+			let sprite_y = sprite.y_pos as u8;
 			let pixel_y = (scanline_y - sprite_y) % 8;
 			let lookup_y = match sprite.y_flip {
 				true  => ((pixel_y as i8 - 7) * -1) as u8,
@@ -405,6 +405,7 @@ impl Gpu {
 			};
 
 			for pixel_x in 0..8 {
+				let adjusted_x = (sprite_x + pixel_x as i32) as u8;
 				// Flip the X/Y rendering if necessary
 				let lookup_x = match sprite.x_flip {
 					true  => ((pixel_x as i8 - 7) * -1) as u8,
@@ -415,12 +416,12 @@ impl Gpu {
 				if pixel == 0 { continue; } // Color zero is ignored when drawing sprites
 				// Do not draw over background priority
 				if sprite.behind_background {
-					if bg_priority[(sprite_x + pixel_x) as usize] {
+					if bg_priority[adjusted_x as usize] {
 						return;
 					}
 				}
 				let color = self.colorize(pixel, palette);
-				let offset_x = sprite_x as i32 + pixel_x as i32;
+				let offset_x = adjusted_x as i32;
 				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
 				let offset = offset_y + offset_x;
 				self.frame_buffer[offset as usize] = color;
@@ -540,8 +541,8 @@ impl Gpu {
 		let sprite = &mut self.sprite_table[sprite_id as usize];
 		let data_type = address % 4;
 		match data_type {
-			0 => sprite.y_pos = data.wrapping_sub(16),
-			1 => sprite.x_pos = data.wrapping_sub(8),
+			0 => sprite.y_pos = data as i32 - 16,
+			1 => sprite.x_pos = data as i32 - 8,
 			2 => sprite.tile_id = data,
 			3 => {
 				sprite.behind_background = (data & Bit::Bit7 as u8) > 0;

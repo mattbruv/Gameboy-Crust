@@ -65,7 +65,7 @@ impl Rom {
 
 	pub fn name(&self) -> String {
 		let mut name = String::new();
-		for index in 0x134..0x143 {
+		for index in 0x134..0x144 {
 			let code = self.read(index);
 			match code {
 				0 => break,
