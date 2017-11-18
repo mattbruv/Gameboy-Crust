@@ -378,7 +378,7 @@ impl Gpu {
 			let sprite_y = sprite.y_pos as u8;
 			let pixel_y = (scanline_y - sprite_y) % 8;
 			let lookup_y = match sprite.y_flip {
-				true  => ((pixel_y as i8 - 7) * -1) as u8,
+				true  => { ((pixel_y as i8 - 7) * -1) as u8 },
 				false => pixel_y
 			};
 
@@ -386,9 +386,11 @@ impl Gpu {
 				true => {
 					// Are we displaying the top half or bottom half?
 					if (scanline_y - sprite_y < 8) { // top half
-						sprite.tile_id & 0xFE
+						if sprite.y_flip { sprite.tile_id | 0x01 }
+						else { sprite.tile_id & 0xFE }
 					} else { // bottom half
-						sprite.tile_id | 0x01
+						if sprite.y_flip { sprite.tile_id & 0xFE }
+						else { sprite.tile_id | 0x01 }
 					}
 				},
 				false => sprite.tile_id,
