@@ -96,17 +96,19 @@ impl Interconnect {
 	// Intercept and re-route reads to memory registers to their actual location
 	fn read_registers(&self, address: u16) -> Option<u8> {
 		match address {
-			P1 => Some(self.joypad.read()),
-			IE => Some(self.interrupt.IE.get()),
-			IF => Some(self.interrupt.IF.get()),
+			P1 =>   Some(self.joypad.read()),
+			IE =>   Some(self.interrupt.IE.get()),
+			IF =>   Some(self.interrupt.IF.get()),
 			LCDC => Some(self.gpu.LCDC.get()),
 			STAT => Some(self.gpu.STAT.get()),
-			LYC => Some(self.gpu.LYC.get()),
-			LY => Some(self.gpu.LY.get()),
-			DIV => Some(self.timer.read_div()),
+			LYC =>  Some(self.gpu.LYC.get()),
+			LY =>   Some(self.gpu.LY.get()),
+			SCY =>  Some(self.gpu.SCY.get()),
+			SCX =>  Some(self.gpu.SCX.get()),
+			DIV =>  Some(self.timer.read_div()),
 			TIMA => Some(self.timer.read_counter()),
-			TMA => Some(self.timer.read_modulo()),
-			TAC => Some(self.timer.read_control()),
+			TMA =>  Some(self.timer.read_modulo()),
+			TAC =>  Some(self.timer.read_control()),
 			_ => None
 		}
 	}
@@ -115,7 +117,8 @@ impl Interconnect {
 		let mut found = true;
 		match address {
 			P1 => self.joypad.write(data),
-			BGP | OBP0 | OBP1 | LCDC | STAT | LY | LYC => self.gpu.write(address, data),
+			BGP | OBP0 | OBP1 | LCDC | STAT |
+			LY | LYC | SCY | SCX => self.gpu.write(address, data),
 			OAM_DMA => self.oam_dma.request(data),
 			IE | IF => self.interrupt.write(address, data),
 			DIV => self.timer.write_div(data),
