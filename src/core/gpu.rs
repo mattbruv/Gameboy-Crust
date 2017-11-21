@@ -91,7 +91,7 @@ pub struct Gpu {
 	// Sprite Table
 	sprite_table: Vec<SpriteEntry>,
 	// Frame Buffer
-	frame_buffer: Box<Vec<u32>>,
+	frame_buffer: Vec<u32>,
 	// Registers
 	pub LCDC: MemoryRegister,
 	pub STAT: MemoryRegister,
@@ -113,7 +113,7 @@ impl Gpu {
 			Oam:  vec![0; OAM_SIZE],
 			tile_cache: vec![TileEntry::new(); 384],
 			sprite_table: vec![SpriteEntry::new(); 40],
-			frame_buffer: Box::new(vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT]),
+			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
 			LCDC: MemoryRegister::new(0x91),
 			STAT: MemoryRegister::new(0x02),
 			LYC: MemoryRegister::new(0x00),
@@ -153,7 +153,7 @@ impl Gpu {
 	pub fn get_tiles(&mut self) -> Vec<u32> {
 		let width = 128;
 		let height = 192;
-		let mut display = Box::new(vec![0xFF00FF; width * height]);
+		let mut display = vec![0xFF00FF; width * height];
 		let palette = self.BGP.get();
 		// Loop entire VRAM as tiles
 		for index in 0..384 {
@@ -175,7 +175,7 @@ impl Gpu {
 				}
 			}
 		}
-		*display
+		display
 	}
 
 	// Updates the tile cache with the current data in VRAM for that tile
@@ -240,7 +240,7 @@ impl Gpu {
 				self.frame_cycles = 0;
 				self.LY.clear();
 				self.set_mode(StatusMode::Oam);
-				video_sink.append(*self.frame_buffer.clone());
+				video_sink.append(self.frame_buffer.clone());
 			}
 
 		} else {
@@ -325,7 +325,6 @@ impl Gpu {
 
 		let buffer_start = y as usize * LCD_WIDTH;
 		let buffer_end = buffer_start as usize + LCD_WIDTH;
-		let foo = &self.frame_buffer[buffer_start .. buffer_end];
 
 		for i in 0..LCD_WIDTH {
 			let x = (i as u8).wrapping_add(self.SCX.get());
@@ -359,8 +358,11 @@ impl Gpu {
 			let color = self.colorize(pixel, palette);
 
 			//buffer_slice[pixel_x] = color;
+			let offset = buffer_start + i;
 			//let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
 
+			if offset < 23040 {
+			self.frame_buffer[offset as usize] = color; }
 		}
 
 
