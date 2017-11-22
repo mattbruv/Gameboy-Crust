@@ -376,6 +376,7 @@ impl Gpu {
 		// Limit the first 10, and draw reversed. Lower indexed sprites have higher priority
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
 			scanline_y as i32 >= sprite.y_pos && scanline_y as i32 <= sprite.y_pos + sprite_y_max as i32
+			&& sprite.x_pos + 8 >= 0 && sprite.x_pos < FRAME_WIDTH as i32
 		}).take(10);
 
 		// Draw the damn thing
@@ -425,7 +426,7 @@ impl Gpu {
 				// Do not draw over background priority
 				if sprite.behind_background {
 					if bg_priority[adjusted_x as usize] {
-						return;
+						continue;
 					}
 				}
 				let color = self.colorize(pixel, palette);
