@@ -320,11 +320,10 @@ impl Gpu {
 			true => 0x8000,
 		};
 
-		let y = self.LY.get().wrapping_add(self.SCY.get());
+		let display_y = self.LY.get();
+		let y = display_y.wrapping_add(self.SCY.get());
 		let row = (y / 8);
-
-		let buffer_start = y as usize * LCD_WIDTH;
-		let buffer_end = buffer_start as usize + LCD_WIDTH;
+		let buffer_start = display_y as usize * LCD_WIDTH;
 
 		for i in 0..LCD_WIDTH {
 			let x = (i as u8).wrapping_add(self.SCX.get());
@@ -352,58 +351,14 @@ impl Gpu {
 			}
 
 			let tile = &self.tile_cache[tile_id];
-			let pixel_x = i % 8;
+			let pixel_x = x % 8;
 			let pixel_y = y % 8;
-			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
+			let pixel = tile.pixels[((pixel_y * 8) + pixel_x) as usize];
 			let color = self.colorize(pixel, palette);
-
-			//buffer_slice[pixel_x] = color;
 			let offset = buffer_start + i;
-			//let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
-
-			if offset < 23040 {
-			self.frame_buffer[offset as usize] = color; }
+			if pixel != 0 { bg_priority[i] = true; }
+			self.frame_buffer[offset as usize] = color;
 		}
-
-
-		/*
-		let map_y = y / 8;
-		// Loop through the 20 tiles on this scanline where L = LY
-
-		for map_x in 0..20 {
-
-			let tile_map_index = (map_y as u16 * 32) + map_x;
-
-			// Finding true tile ID ********
-			let lookup = tile_map_location + tile_map_index;
-			let tile_pattern = self.read_raw(lookup);
-
-			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
-				false => {
-					let adjusted = ((tile_pattern as i8) as i16) * 16;
-					let path = (tile_data_location as i16) + adjusted;
-					path as u16
-				}, // $8800-97FF (signed, so we start in the middle)
-				true  => {
-					(tile_pattern as u16 * 16) + tile_data_location
-				}, // $8800-97FF (unsigned)
-			};
-
-			let tile_id = self.address_to_tile_id(vram_location);
-
-			// Refresh the tile if it has been overwritten in VRAM
-			if self.tile_cache[tile_id].dirty {
-				self.refresh_tile(tile_id);
-			}
-
-			let tile_y = y % 8;
-			for tile_x in 0..8 {
-				let pixel = self.tile_cache[tile_id].pixels[((tile_y * 8) + tile_x) as usize];
-				let buffer_offset = (y as u16 * 160) + (map_x as u16 * 8) + tile_x as u16;
-				if pixel != 0 { bg_priority[((map_x as u16 * 8) + tile_x as u16) as usize] = true; }
-				self.frame_buffer[buffer_offset as usize] = self.colorize(pixel, palette);
-			}
-		} */
 	}
 
 	#[inline]
