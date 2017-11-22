@@ -105,6 +105,8 @@ impl Interconnect {
 			LY =>   Some(self.gpu.LY.get()),
 			SCY =>  Some(self.gpu.SCY.get()),
 			SCX =>  Some(self.gpu.SCX.get()),
+			WX =>  Some(self.gpu.WX.get()),
+			WY =>  Some(self.gpu.WY.get()),
 			DIV =>  Some(self.timer.read_div()),
 			TIMA => Some(self.timer.read_counter()),
 			TMA =>  Some(self.timer.read_modulo()),
@@ -118,7 +120,7 @@ impl Interconnect {
 		match address {
 			P1 => self.joypad.write(data),
 			BGP | OBP0 | OBP1 | LCDC | STAT |
-			LY | LYC | SCY | SCX => self.gpu.write(address, data),
+			LY | LYC | SCY | SCX | WX | WY => self.gpu.write(address, data),
 			OAM_DMA => self.oam_dma.request(data),
 			IE | IF => self.interrupt.write(address, data),
 			DIV => self.timer.write_div(data),

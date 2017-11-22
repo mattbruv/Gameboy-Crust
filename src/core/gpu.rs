@@ -11,9 +11,6 @@ const TILE_RAM_END: u16 = 0x97FF;
 const VRAM_SIZE: usize = 8192; // 8Kb Bank
 const OAM_SIZE: usize = 160; // 160byte OAM memory
 
-const LCD_WIDTH: usize  = 160;
-const LCD_HEIGHT: usize = 144;
-
 // time in cycles for each mode to complete
 // Read -> Transfer -> Hblank (reapeat...) until Vblank
 const OAM_PERIOD: usize        = 80; // 77-83 cycles, 80 average
@@ -21,7 +18,7 @@ const TRANSFER_PERIOD: usize   = OAM_PERIOD + 172; // 169-175 cycles, 172 averag
 const HBLANK_PERIOD: usize     = 456; // 456 cycles
 
 // time in cycles for rendering full screen and vblank
-const FRAME_PERIOD: usize      = HBLANK_PERIOD * LCD_HEIGHT; // 65,664 cycles for full frame
+const FRAME_PERIOD: usize      = HBLANK_PERIOD * FRAME_HEIGHT; // 65,664 cycles for full frame
 const VBLANK_PERIOD: usize     = FRAME_PERIOD + 4560; // 4,560 cycles for vblank
 
 // Status of the LCD controller
@@ -102,6 +99,8 @@ pub struct Gpu {
 	pub OBP1: MemoryRegister,
 	pub SCY: MemoryRegister,
 	pub SCX: MemoryRegister,
+	pub WY: MemoryRegister,
+	pub WX: MemoryRegister,
 	scanline_cycles: usize,
 	frame_cycles: usize,
 }
@@ -123,6 +122,8 @@ impl Gpu {
 			OBP1: MemoryRegister::new(0x00),
 			SCY: MemoryRegister::new(0x00),
 			SCX: MemoryRegister::new(0x00),
+			WY: MemoryRegister::new(0x00),
+			WX: MemoryRegister::new(0x00),
 			scanline_cycles: 0,
 			frame_cycles: 0,
 		}
@@ -300,6 +301,10 @@ impl Gpu {
 			self.draw_background(&mut bg_priority);
 		}
 
+		if self.LCDC.is_set(Bit::Bit5) {
+			self.draw_window(&mut bg_priority);
+		}
+
 		// If sprites are enabled, draw them
 		if self.LCDC.is_set(Bit::Bit1) {
 			self.draw_sprites(&mut bg_priority);
@@ -323,9 +328,9 @@ impl Gpu {
 		let display_y = self.LY.get();
 		let y = display_y.wrapping_add(self.SCY.get());
 		let row = (y / 8);
-		let buffer_start = display_y as usize * LCD_WIDTH;
+		let buffer_start = display_y as usize * FRAME_WIDTH;
 
-		for i in 0..LCD_WIDTH {
+		for i in 0..FRAME_WIDTH {
 			let x = (i as u8).wrapping_add(self.SCX.get());
 			let column = (x / 8);
 			let tile_map_index = (row as u16 * 32) + column as u16;
@@ -358,6 +363,45 @@ impl Gpu {
 			let offset = buffer_start + i;
 			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[offset as usize] = color;
+		}
+	}
+
+	#[inline]
+	fn draw_window(&mut self, bg_priority: &mut Vec<bool>) {
+		let y_offset = self.WY.get();
+		let x_offset = self.WX.get();
+		let scanline_y = self.LY.get();
+		let palette = self.BGP.get();
+
+		let tile_map_location = match self.LCDC.is_set(Bit::Bit6) {
+			true  => 0x9C00,
+			false => 0x9800
+		};
+
+		let row = (scanline_y) / 8;
+		let pixel_y = scanline_y % 8;
+		let buffer_start = scanline_y as usize * FRAME_WIDTH;
+
+		if scanline_y < y_offset { return; }
+
+		for i in 0..FRAME_WIDTH {
+			let display_x = x_offset.wrapping_sub(7);
+			let column = x_offset / 8;
+			let tile_map_index = (row * 32) + column;
+			let offset = tile_map_location + tile_map_index as u16;
+			let tile_id = self.read_raw(offset) as usize;
+
+			if self.tile_cache[tile_id].dirty {
+				self.refresh_tile(tile_id);
+			}
+
+			let pixel_x = i % 8;
+			let tile = &self.tile_cache[tile_id];
+			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
+			let color = self.colorize(pixel, palette);
+			let buffer_offset = buffer_start + i;
+			self.frame_buffer[buffer_offset as usize] = color;
+
 		}
 	}
 
@@ -518,6 +562,8 @@ impl Gpu {
 			LY => { self.LY.set(data); },
 			SCY => { self.SCY.set(data); },
 			SCX => { self.SCX.set(data); },
+			WY => { self.WY.set(data); },
+			WX => { self.WX.set(data); },
 
 			VRAM_START ... VRAM_END => {
 				// Disallow writes to VRAM depending on the mode
