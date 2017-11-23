@@ -378,18 +378,38 @@ impl Gpu {
 			false => 0x9800
 		};
 
-		let row = (scanline_y) / 8;
+		let tile_data_location = match self.LCDC.is_set(Bit::Bit4) {
+			false => 0x9000,
+			true => 0x8000,
+		};
+
 		let pixel_y = scanline_y % 8;
 		let buffer_start = scanline_y as usize * FRAME_WIDTH;
 
 		if scanline_y < y_offset { return; }
 
+		let tile_y = scanline_y - y_offset;
+		let row = (tile_y) / 8;
+
 		for i in 0..FRAME_WIDTH {
-			let display_x = x_offset.wrapping_sub(7);
-			let column = x_offset / 8;
+			let display_x = x_offset.wrapping_sub(7) + i as u8;
+			let column = display_x / 8;
 			let tile_map_index = (row * 32) + column;
 			let offset = tile_map_location + tile_map_index as u16;
-			let tile_id = self.read_raw(offset) as usize;
+			let tile_pattern = self.read_raw(offset);
+
+			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
+				false => {
+					let adjusted = ((tile_pattern as i8) as i16) * 16;
+					let path = (tile_data_location as i16) + adjusted;
+					path as u16
+				}, // $8800-97FF (signed, so we start in the middle)
+				true  => {
+					(tile_pattern as u16 * 16) + tile_data_location
+				}, // $8800-97FF (unsigned)
+			};
+
+			let tile_id = self.address_to_tile_id(vram_location);
 
 			if self.tile_cache[tile_id].dirty {
 				self.refresh_tile(tile_id);
@@ -400,6 +420,7 @@ impl Gpu {
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
 			let color = self.colorize(pixel, palette);
 			let buffer_offset = buffer_start + i;
+			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[buffer_offset as usize] = color;
 
 		}
