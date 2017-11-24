@@ -24,6 +24,15 @@ impl MBC1 {
 			eram: vec![0; 0x8000], // 32Kb
 		}
 	}
+    
+    fn adjust_rom_bank(&mut self) {
+        self.rom_bank = match self.rom_bank {
+            0x00 | 0x20 | 0x40 | 0x60 => {
+                self.rom_bank + 1
+            },
+            _ => self.rom_bank
+        }
+    }
 }
 
 impl MemoryController for MBC1 {
@@ -39,7 +48,8 @@ impl MemoryController for MBC1 {
 				bytes[offset as usize]
 			},
 			ERAM_START ... ERAM_END => {
-				let index = address - ERAM_START;
+                if !self.ram_enabled { return 0xFF; }
+                let index = address - ERAM_START;
 				let offset = (0x2000 as u32 * self.ram_bank as u32) + index as u32;
 				self.eram[offset as usize]
 			},
@@ -60,24 +70,21 @@ impl MemoryController for MBC1 {
 			// ROM bank number
 			0x2000 ... 0x3FFF => {
 				// extract lower 5 bits
-				let mut bank_number = data & 0x1F;
-				self.rom_bank = match bank_number {
-					// Disallow selecting the following banks
-					0x00 | 0x20 | 0x40 | 0x60 => bank_number + 1,
-					_ => bank_number
-				};
-			},
+				let bank_number = data & 0x1F;
+				self.rom_bank = (self.rom_bank & 0xE0) | bank_number;
+                self.adjust_rom_bank();
+            },
 			// RAM bank number OR upper ROM bank bits depending on mode
 			0x4000 ... 0x5FFF => {
-				let bits = data & 0b11;
+				let bank_id = data & 0b11;
 				match self.mode {
 					// we are specifying bits 5/6 of ROM bank
 					ModeSelect::Rom => {
-						let bank = self.rom_bank & 0x1F;
-						self.rom_bank = (bits << 5) | bank;
+						self.rom_bank = self.rom_bank | (bank_id << 5); 
+                        self.adjust_rom_bank();
 					},
 					ModeSelect::Ram => {
-						self.ram_bank = bits;
+						self.ram_bank = bank_id;
 					},
 				}
 
@@ -91,7 +98,7 @@ impl MemoryController for MBC1 {
 			},
 			// ERAM writes
 			ERAM_START ... ERAM_END => {
-				// RAM bank zero can always be used no matter what mode
+				if !self.ram_enabled { return; }
 				let index = address - ERAM_START;
 				let offset = (0x2000 as u32 * self.ram_bank as u32) + index as u32;
 				self.eram[offset as usize] = data;
