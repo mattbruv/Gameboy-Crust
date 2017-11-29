@@ -219,6 +219,9 @@ impl Gpu {
 
 		let old_mode = self.get_mode();
 		let mut new_mode: StatusMode;
+		
+		// Determine if we need to request an interrupt on mode change
+		let mut request_interrupt = false;
 
 		self.scanline_cycles += cycles;
 		self.frame_cycles += cycles;
@@ -229,10 +232,9 @@ impl Gpu {
 			// We have just entered the Vblank period
 			if old_mode != StatusMode::VBlank {
 				self.set_mode(StatusMode::VBlank);
-				self.set_stat(StatusInterrupt::VBlank);
 				// Call the appropriate interrupt
 				interrupt.request_interrupt(InterruptFlag::VBlank);
-				interrupt.request_interrupt(InterruptFlag::Lcdc);
+				request_interrupt = self.LCDC.is_set(Bit::Bit4);
 			}
 
 			// we have completed vblank period, reset everything, update sink
@@ -250,8 +252,7 @@ impl Gpu {
 				0 ... OAM_PERIOD => { // OAM
 					if old_mode != StatusMode::Oam {
 						self.set_mode(StatusMode::Oam);
-						self.set_stat(StatusInterrupt::Oam);
-						interrupt.request_interrupt(InterruptFlag::Lcdc);
+						request_interrupt = self.LCDC.is_set(Bit::Bit5);
 					}
 				},
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
@@ -266,12 +267,16 @@ impl Gpu {
 					// We have just entered H-Blank
 					if old_mode != StatusMode::HBlank {
 						self.set_mode(StatusMode::HBlank);
-						self.set_stat(StatusInterrupt::HBlank);
-						interrupt.request_interrupt(InterruptFlag::Lcdc);
+						request_interrupt = self.LCDC.is_set(Bit::Bit3);
 					}
 				},
 				_ => {},
 			}
+		}
+
+		// request an interrupt if we need to
+		if request_interrupt {
+			interrupt.request_interrupt(InterruptFlag::Lcdc);
 		}
 
 		// If we have finished the H-Blank period, we are on a new line
@@ -284,7 +289,6 @@ impl Gpu {
 		// LY == LYC Coincidence flag
 		if self.LY.get() == self.LYC.get() {
 			self.STAT.set_bit(Bit::Bit2);
-			self.set_stat(StatusInterrupt::Coincidence);
 			interrupt.request_interrupt(InterruptFlag::Lcdc);
 		} else {
 			self.STAT.clear_bit(Bit::Bit2);
@@ -576,8 +580,10 @@ impl Gpu {
 			OBP1 => { self.OBP1.set(data); },
 			LCDC => { self.update_lcdc(data); },
 			STAT => {
-				// Bits 0-2 are read only
-				self.STAT.set(data & 0xF8);
+				let stat = self.STAT.get();
+				let high = data & 0xF8;
+				let low = stat & 0x7; // Bits 0-2 are read only
+				self.STAT.set(high | low);
 			},
 			LYC => { self.LYC.set(data); },
 			LY => { self.LY.set(data); },
