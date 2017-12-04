@@ -446,7 +446,7 @@ impl Gpu {
 		let mut iter = self.sprite_table.clone().into_iter().filter(|sprite| {
 			scanline_y as i32 >= sprite.y_pos && scanline_y as i32 <= sprite.y_pos + sprite_y_max as i32
 			&& sprite.x_pos + 8 >= 0 && sprite.x_pos < FRAME_WIDTH as i32
-		}).take(10);
+		}).rev().take(10);
 
 		// Draw the damn thing
 		for sprite in iter {
