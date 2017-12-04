@@ -452,6 +452,7 @@ impl Gpu {
 		for sprite in iter {
 			let sprite_x = sprite.x_pos;
 			let sprite_y = sprite.y_pos as u8;
+
 			let pixel_y = (scanline_y - sprite_y) % 8;
 			let lookup_y = match sprite.y_flip {
 				true  => { ((pixel_y as i8 - 7) * -1) as u8 },
@@ -484,6 +485,10 @@ impl Gpu {
 
 			for pixel_x in 0..8 {
 				let adjusted_x = (sprite_x + pixel_x as i32) as u8;
+
+                // Do not draw out of bounds sprites
+                if adjusted_x > 160 { continue; };
+
 				// Flip the X/Y rendering if necessary
 				let lookup_x = match sprite.x_flip {
 					true  => ((pixel_x as i8 - 7) * -1) as u8,
