@@ -403,8 +403,8 @@ impl Gpu {
 		for i in 0..FRAME_WIDTH {
 			let display_x = (i as u8).wrapping_add(window_x);
 			let column = i as u8 / 8;
-			let tile_map_index = (row * 32) + column;
-			let offset = tile_map_location + tile_map_index as u16;
+			let tile_map_index = (row as u16 * 32) + column as u16;
+			let offset = tile_map_location + tile_map_index;
 			let tile_pattern = self.read_raw(offset);
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
