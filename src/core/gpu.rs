@@ -219,7 +219,7 @@ impl Gpu {
 
 		let old_mode = self.get_mode();
 		let mut new_mode: StatusMode;
-		
+
 		// Determine if we need to request an interrupt on mode change
 		let mut request_interrupt = false;
 
@@ -372,10 +372,12 @@ impl Gpu {
 
 	#[inline]
 	fn draw_window(&mut self, bg_priority: &mut Vec<bool>) {
-		let y_offset = self.WY.get();
-		let x_offset = self.WX.get();
-		let scanline_y = self.LY.get();
+		let window_y = self.WY.get();
+		let window_x = self.WX.get().wrapping_sub(7);
+		let y = self.LY.get();
 		let palette = self.BGP.get();
+
+		if y < window_y { return; }
 
 		let tile_map_location = match self.LCDC.is_set(Bit::Bit6) {
 			true  => 0x9C00,
@@ -387,17 +389,20 @@ impl Gpu {
 			true => 0x8000,
 		};
 
-		let pixel_y = scanline_y % 8;
-		let buffer_start = scanline_y as usize * FRAME_WIDTH;
+		let pixel_y = y % 8;
+		let buffer_start = y as usize * FRAME_WIDTH;
 
-		if scanline_y < y_offset { return; }
+		let row = (y - window_y) / 8;
+		// THE PROBLEM IS WITH THE ROW
 
-		let tile_y = scanline_y - y_offset;
-		let row = (tile_y) / 8;
+		let debug_line_color = ((y - window_y) as f32 * 1.77) as u8;
+		let mut debug_color: u32 = (debug_line_color as u32) << 16;
+		//debug_color |= ((debug_line_color as u32) << 8);
+		debug_color |= (debug_line_color as u32);
 
 		for i in 0..FRAME_WIDTH {
-			let display_x = x_offset.wrapping_sub(7) + i as u8;
-			let column = display_x / 8;
+			let display_x = (i as u8).wrapping_add(window_x);
+			let column = i as u8 / 8;
 			let tile_map_index = (row * 32) + column;
 			let offset = tile_map_location + tile_map_index as u16;
 			let tile_pattern = self.read_raw(offset);
