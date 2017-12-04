@@ -487,7 +487,7 @@ impl Gpu {
 				let adjusted_x = (sprite_x + pixel_x as i32) as u8;
 
                 // Do not draw out of bounds sprites
-                if adjusted_x > 160 { continue; };
+                if adjusted_x >= 160 { continue; };
 
 				// Flip the X/Y rendering if necessary
 				let lookup_x = match sprite.x_flip {

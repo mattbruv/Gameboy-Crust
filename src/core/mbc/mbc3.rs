@@ -54,8 +54,7 @@ impl MemoryController for MBC3 {
                 // RAM/Timer enable write
                 self.ram_timer_enable = match data {
                     0x0A => true,
-                    0x00 => false,
-                    _ => unreachable!()
+                    _ => false,
                 };
             },
             0x2000 ... 0x3FFF => {
