@@ -7,4 +7,6 @@ impl MemoryController for MBC0 {
 		bytes[address as usize]
 	}
 	fn write(&mut self, address: u16, data: u8) {}
+    fn set_title(&mut self, name: String) {}
+    fn load(&mut self) {}
 }

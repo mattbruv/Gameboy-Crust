@@ -1,5 +1,6 @@
 use std::io::prelude::*;
 use std::fs::File;
+use std::io::*;
 
 pub enum Bit {
 	Bit0 = 0b00000001,
@@ -13,10 +14,21 @@ pub enum Bit {
 }
 
 pub fn dump(name: &str, bytes: &Vec<u8>) {
-	let mut dir = "dumps/".to_owned();
-	dir.push_str(name);
-	let mut file = File::create(dir).unwrap();
+	let mut file = File::create(name).unwrap();
 	file.write_all(bytes);
+}
+
+pub fn load(name: String, buffer: &mut Vec<u8>) {
+    let mut temp_vec = Vec::new();
+    match File::open(&name) {
+        Err (_) => {
+            println!("FAILED TO READ BUFFER!");
+        },
+        Ok (mut f) => {
+            f.read_to_end(&mut temp_vec);
+            *buffer = temp_vec;
+        }
+    }
 }
 
 pub struct MemoryRegister {

@@ -1,7 +1,9 @@
 use core::mbc::*;
 use core::memory_map::*;
+use core::helper::*;
 
 pub struct MBC3 {
+    title: String,
     rom_bank: u8,
     ram_bank: u8,
     rtc_register: u8,
@@ -13,6 +15,7 @@ pub struct MBC3 {
 impl MBC3 {
     pub fn new() -> MBC3 {
         MBC3 {
+            title: "".to_owned(),
             rom_bank: 0x01,
             ram_bank: 0x00,
             rtc_register: 0x00,
@@ -90,5 +93,21 @@ impl MemoryController for MBC3 {
         }    
     }
 
+    fn set_title(&mut self, name: String) {
+        self.title = name;
+    }
+
+    fn load(&mut self) {
+        let mut title = self.title.clone();
+        title.push_str(".sav");
+        load(title, &mut self.eram);
+    }
 }
 
+impl Drop for MBC3 {
+    fn drop(&mut self) {
+        let mut filename = self.title.clone();
+        filename.push_str(".sav");
+        dump(&filename, &self.eram);
+    }
+}

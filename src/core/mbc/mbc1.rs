@@ -1,5 +1,6 @@
 use core::mbc::*;
 use core::memory_map::*;
+use core::helper::*;
 
 enum ModeSelect {
 	Rom,
@@ -7,6 +8,7 @@ enum ModeSelect {
 }
 
 pub struct MBC1 {
+    title: String,
 	rom_bank: u8,
 	ram_bank: u8,
 	ram_enabled: bool,
@@ -17,6 +19,7 @@ pub struct MBC1 {
 impl MBC1 {
 	pub fn new() -> MBC1 {
 		MBC1 {
+            title: "".to_owned(),
 			rom_bank: 0x01,
 			ram_bank: 0x00,
 			ram_enabled: false,
@@ -24,7 +27,7 @@ impl MBC1 {
 			eram: vec![0; 0x8000], // 32Kb
 		}
 	}
-    
+
     fn adjust_rom_bank(&mut self) {
         self.rom_bank = match self.rom_bank {
             0x00 | 0x20 | 0x40 | 0x60 => {
@@ -106,4 +109,22 @@ impl MemoryController for MBC1 {
 			_ => unreachable!(),
 		}
 	}
+
+    fn set_title(&mut self, name: String) {
+        self.title = name;
+    }
+
+    fn load(&mut self) {
+        let mut title = self.title.clone();
+        title.push_str(".sav");
+        load(title, &mut self.eram);
+    }
+}
+
+impl Drop for MBC1 {
+    fn drop(&mut self) {
+        let mut filename = self.title.clone();
+        filename.push_str(".sav");
+        dump(&filename, &self.eram);
+    }
 }

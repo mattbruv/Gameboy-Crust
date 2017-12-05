@@ -46,7 +46,7 @@ A checklist of all the planned system components as I complete them. The entries
 - [ ] Link Cable (via networking?)
 - [X] CPU overclocking
 - [ ] Hardware Save States
-- [ ] SRAM Save States
+- [X] SRAM Save States
 - [ ] Gameshark/Genie Cheats
 - [ ] Trivial Debugger/Dissassembler
 - [X] VRAM Viewer

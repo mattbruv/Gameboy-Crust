@@ -19,4 +19,8 @@ impl MemoryController for MBC2 {
 	fn write(&mut self, address: u16, data: u8) {
 		unimplemented!();
 	}
+    fn set_title(&mut self, name: String) {
+        unimplemented!();
+    }
+    fn load(&mut self) { unimplemented!(); }
 }

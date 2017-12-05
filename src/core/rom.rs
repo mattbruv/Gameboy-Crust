@@ -19,7 +19,7 @@ impl Rom {
 		file.read_to_end(&mut buffer).expect("Unable to read ROM");
 		let cart_type = buffer[0x147];
 
-		Rom {
+		let mut cart = Rom {
 			controller: match cart_type {
 				0x00 => Box::new(mbc0::MBC0),
 				0x01 ... 0x03 => Box::new(mbc1::MBC1::new()),
@@ -28,7 +28,11 @@ impl Rom {
 				_ => panic!("Unsupported Cartridge Type: ${:02X}", cart_type)
 			},
 			bytes: buffer
-		}
+		};
+        let name = cart.name();
+        cart.controller.set_title(name);
+        cart.controller.load();
+        cart
 	}
 
 	pub fn read(&self, address: u16) -> u8 {
