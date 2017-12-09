@@ -234,7 +234,8 @@ impl Gpu {
 				self.set_mode(StatusMode::VBlank);
 				// Call the appropriate interrupt
 				interrupt.request_interrupt(InterruptFlag::VBlank);
-				request_interrupt = self.LCDC.is_set(Bit::Bit4);
+				request_interrupt = self.STAT.is_set(Bit::Bit4);
+				video_sink.append(self.frame_buffer.clone());
 			}
 
 			// we have completed vblank period, reset everything, update sink
@@ -242,8 +243,8 @@ impl Gpu {
 				self.scanline_cycles = 0;
 				self.frame_cycles = 0;
 				self.LY.clear();
+                self.line_compare(interrupt);
 				self.set_mode(StatusMode::Oam);
-				video_sink.append(self.frame_buffer.clone());
 			}
 
 		} else {
@@ -252,7 +253,7 @@ impl Gpu {
 				0 ... OAM_PERIOD => { // OAM
 					if old_mode != StatusMode::Oam {
 						self.set_mode(StatusMode::Oam);
-						request_interrupt = self.LCDC.is_set(Bit::Bit5);
+						request_interrupt = self.STAT.is_set(Bit::Bit5);
 					}
 				},
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
@@ -263,11 +264,11 @@ impl Gpu {
 						self.update_scanline();
 					}
 				},
-				TRANSFER_PERIOD ... HBLANK_PERIOD => { // OAM
+				TRANSFER_PERIOD ... HBLANK_PERIOD => { // H-Blank 
 					// We have just entered H-Blank
 					if old_mode != StatusMode::HBlank {
 						self.set_mode(StatusMode::HBlank);
-						request_interrupt = self.LCDC.is_set(Bit::Bit3);
+						request_interrupt = self.STAT.is_set(Bit::Bit3);
 					}
 				},
 				_ => {},
@@ -284,8 +285,11 @@ impl Gpu {
 		if self.scanline_cycles > HBLANK_PERIOD {
 			self.LY.add(1);
 			self.scanline_cycles = 0;
+            self.line_compare(interrupt);
 		}
 
+	}
+    fn line_compare(&mut self, interrupt: &mut InterruptHandler) {
 		// LY == LYC Coincidence flag
 		if self.LY.get() == self.LYC.get() {
 			self.STAT.set_bit(Bit::Bit2);
@@ -293,8 +297,7 @@ impl Gpu {
 		} else {
 			self.STAT.clear_bit(Bit::Bit2);
 		}
-	}
-
+    }
 	// Draw the current scanline on the internal framebuffer
 	fn update_scanline(&mut self) {
 		// A helper vector to determine sprite priority relative to bg
@@ -458,7 +461,7 @@ impl Gpu {
 			let sprite_x = sprite.x_pos;
 			let sprite_y = sprite.y_pos as u8;
 
-			let pixel_y = (scanline_y - sprite_y) % 8;
+			let pixel_y = (scanline_y.wrapping_sub(sprite_y)) % 8;
 			let lookup_y = match sprite.y_flip {
 				true  => { ((pixel_y as i8 - 7) * -1) as u8 },
 				false => pixel_y
@@ -467,7 +470,7 @@ impl Gpu {
 			let tile_id = match tall_sprite_mode {
 				true => {
 					// Are we displaying the top half or bottom half?
-					if (scanline_y - sprite_y < 8) { // top half
+					if (scanline_y.wrapping_sub(sprite_y) < 8) { // top half
 						if sprite.y_flip { sprite.tile_id | 0x01 }
 						else { sprite.tile_id & 0xFE }
 					} else { // bottom half

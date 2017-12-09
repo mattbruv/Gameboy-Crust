@@ -33,7 +33,7 @@ impl Emulator {
 	pub fn run(&mut self) {
 
 		let mut tile_window: Option<Window> = None;
-		let mut multiplier = 10;
+		let mut multiplier = 100;
 		let mut overclock = false;
 
 		while self.window.is_open() && !self.window.is_key_down(Key::Escape) {
