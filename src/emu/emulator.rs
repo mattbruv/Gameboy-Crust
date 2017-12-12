@@ -25,7 +25,7 @@ impl Emulator {
 				borderless: false,
 				title: true,
 				resize: false,
-				scale: Scale::X4,
+				scale: Scale::X1,
 			}).unwrap(),
 		}
 	}

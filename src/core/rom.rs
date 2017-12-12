@@ -25,6 +25,7 @@ impl Rom {
 				0x01 ... 0x03 => Box::new(mbc1::MBC1::new()),
 				0x05 ... 0x06 => Box::new(mbc2::MBC2::new()),
 				0x0F ... 0x13 => Box::new(mbc3::MBC3::new()),
+				0x19 ... 0x1E => Box::new(mbc3::MBC3::new()),
 				_ => panic!("Unsupported Cartridge Type: ${:02X}", cart_type)
 			},
 			bytes: buffer

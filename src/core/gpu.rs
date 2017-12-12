@@ -13,13 +13,9 @@ const OAM_SIZE: usize = 160; // 160byte OAM memory
 
 // time in cycles for each mode to complete
 // Read -> Transfer -> Hblank (reapeat...) until Vblank
-const OAM_PERIOD: usize        = 80; // 77-83 cycles, 80 average
-const TRANSFER_PERIOD: usize   = OAM_PERIOD + 172; // 169-175 cycles, 172 average
-const HBLANK_PERIOD: usize     = 456; // 456 cycles
-
-// time in cycles for rendering full screen and vblank
-const FRAME_PERIOD: usize      = HBLANK_PERIOD * FRAME_HEIGHT; // 65,664 cycles for full frame
-const VBLANK_PERIOD: usize     = FRAME_PERIOD + 4560; // 4,560 cycles for vblank
+const TOTAL_SCANLINE_CYCLES: isize = 456; // 456 cycles to draw a scanline
+const OAM_CUTOFF: isize = TOTAL_SCANLINE_CYCLES - 80; // 77-83 cycles, 80 average
+const TRANSFER_CUTOFF: isize = OAM_CUTOFF - 172; // 169-175 cycles, 172 average
 
 // Status of the LCD controller
 #[derive(Debug, PartialEq)]
@@ -101,8 +97,7 @@ pub struct Gpu {
 	pub SCX: MemoryRegister,
 	pub WY: MemoryRegister,
 	pub WX: MemoryRegister,
-	scanline_cycles: usize,
-	frame_cycles: usize,
+	scanline_counter: isize,
 }
 
 impl Gpu {
@@ -114,18 +109,17 @@ impl Gpu {
 			sprite_table: vec![SpriteEntry::new(); 40],
 			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
 			LCDC: MemoryRegister::new(0x91),
-			STAT: MemoryRegister::new(0x02),
+			STAT: MemoryRegister::new(0x00),
 			LYC: MemoryRegister::new(0x00),
 			LY: MemoryRegister::new(0x00),
-			BGP: MemoryRegister::new(0x00),
+			BGP: MemoryRegister::new(0xFC),
 			OBP0: MemoryRegister::new(0x00),
 			OBP1: MemoryRegister::new(0x00),
 			SCY: MemoryRegister::new(0x00),
 			SCX: MemoryRegister::new(0x00),
 			WY: MemoryRegister::new(0x00),
 			WX: MemoryRegister::new(0x00),
-			scanline_cycles: 0,
-			frame_cycles: 0,
+			scanline_counter: TOTAL_SCANLINE_CYCLES,
 		}
 	}
 
@@ -213,88 +207,94 @@ impl Gpu {
 
 	pub fn cycles(&mut self, cycles: usize, interrupt: &mut InterruptHandler, video_sink: &mut VideoSink) {
 
-		if !self.display_enabled() {
-            self.LY.clear();
-			return;
-		}
+        self.set_lcd_status(interrupt);
 
-		let old_mode = self.get_mode();
-		let mut new_mode: StatusMode;
+        if !self.display_enabled() {
+            return;
+        }
 
-		// Determine if we need to request an interrupt on mode change
-		let mut request_interrupt = false;
+        self.scanline_counter -= cycles as isize;
 
-		self.scanline_cycles += cycles;
-		self.frame_cycles += cycles;
-        let ly = self.LY.get();
+        if self.scanline_counter < 0
+        {
+            // Reset our counter
+            self.scanline_counter = TOTAL_SCANLINE_CYCLES;
 
-		// we are in vblank
-		if ly >= 144 {
+            let scanline = self.LY.get();
 
-			// We have just entered the Vblank period
-			if old_mode != StatusMode::VBlank {
-				self.set_mode(StatusMode::VBlank);
-				// Call the appropriate interrupt
-				interrupt.request_interrupt(InterruptFlag::VBlank);
-				request_interrupt = self.STAT.is_set(Bit::Bit4);
-				video_sink.append(self.frame_buffer.clone());
-			}
+            if scanline == 144 {
+                // Request V-blank interrupt
+                interrupt.request_interrupt(InterruptFlag::VBlank);
+                // we have also reached the end of the frame, output it
+                video_sink.append(self.frame_buffer.clone());
+            }
+            else if scanline > 153 {
+                self.LY.clear();
+            }
+            else if scanline < 144 {
+                self.update_scanline();
+            }
 
-		} else {
-			// Update the scanline state
-			match self.scanline_cycles {
-				0 ... OAM_PERIOD => { // OAM
-					if old_mode != StatusMode::Oam {
-						self.set_mode(StatusMode::Oam);
-						request_interrupt = self.STAT.is_set(Bit::Bit5);
-					}
-				},
-				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
-					if old_mode != StatusMode::Transfer {
-						self.set_mode(StatusMode::Transfer);
-					}
-				},
-				TRANSFER_PERIOD ... HBLANK_PERIOD => { // H-Blank 
-					// We have just entered H-Blank
-					if old_mode != StatusMode::HBlank {
-						self.set_mode(StatusMode::HBlank);
-						request_interrupt = self.STAT.is_set(Bit::Bit3);
-						self.update_scanline();
-					}
-				},
-				_ => {},
-			}
-		}
-
-		// request an interrupt if we need to
-		if request_interrupt {
-			interrupt.request_interrupt(InterruptFlag::Lcdc);
-		}
-
-		// If we have finished the H-Blank period, we are on a new line
-		// LY is updated even if we are in V-blank
-		if self.scanline_cycles > HBLANK_PERIOD {
-			self.LY.add(1);
-			self.scanline_cycles = 0;
-            self.line_compare(interrupt);
-
-			// we have completed vblank period, reset everything, update sink
-			if self.LY.get() > 153 {
-				self.scanline_cycles = 0;
-				self.frame_cycles = 0;
-				self.LY.clear();
-                self.line_compare(interrupt);
-				self.set_mode(StatusMode::Oam);
-			}
-
-		}
-
+            self.LY.add(1);
+        }
 	}
+
+    fn set_lcd_status(&mut self, interrupt: &mut InterruptHandler) {
+        // if the LCD is disabled, reset our internal counters
+        if !self.display_enabled() {
+            self.scanline_counter = TOTAL_SCANLINE_CYCLES;
+            self.LY.clear(); // reset scanline counter
+            self.set_mode(StatusMode::VBlank);
+            return;
+        }
+
+        let current_line = self.LY.get();
+        let current_mode = self.get_mode();
+        let mut new_mode: StatusMode;
+
+        let new_mode: StatusMode;
+        let mut request_interrupt = false;
+
+        // We are in VBlank
+        if current_line >= 144 {
+            new_mode = StatusMode::VBlank;
+            request_interrupt = self.STAT.is_set(Bit::Bit4);
+        }
+        else {
+            // Are we in Mode 2? (OAM search)
+            if self.scanline_counter >= OAM_CUTOFF {
+                new_mode = StatusMode::Oam;
+                request_interrupt = self.STAT.is_set(Bit::Bit5);
+            }
+            // Are we in Mode 3? (transferring VRAM/OAM)
+            else if self.scanline_counter >= TRANSFER_CUTOFF {
+                new_mode = StatusMode::Transfer;
+                // No interrupt is requested for this mode
+            }
+            // If nothing else, we are in Mode 0. (H-Blank)
+            else {
+                new_mode = StatusMode::HBlank;
+                request_interrupt = self.STAT.is_set(Bit::Bit3);
+            }
+        }
+
+        // Request interrupt if we have entered a new mode and the game requests one
+        if request_interrupt && (current_mode != new_mode) {
+            interrupt.request_interrupt(InterruptFlag::Lcdc);
+        }
+
+        // Check coincidence flag
+        self.line_compare(interrupt);
+
+        // Assign new mode
+        self.set_mode(new_mode);
+    }
+
     fn line_compare(&mut self, interrupt: &mut InterruptHandler) {
 		// LY == LYC Coincidence flag
         let enabled = self.STAT.is_set(Bit::Bit6);
 		if enabled && self.LY.get() == self.LYC.get() {
-			self.STAT.set_bit(Bit::Bit2);
+			self.STAT.set_bit(Bit::Bit2); // make sure this is being called?
 			interrupt.request_interrupt(InterruptFlag::Lcdc);
 		} else {
 			self.STAT.clear_bit(Bit::Bit2);
@@ -600,7 +600,7 @@ impl Gpu {
 				self.STAT.set(high | low);
 			},
 			LYC => { self.LYC.set(data); },
-			LY => { },//self.LY.clear(); }, // writing resets counter 
+			LY => { self.LY.clear(); }, // writing resets counter 
 			SCY => { self.SCY.set(data); },
 			SCX => { self.SCX.set(data); },
 			WY => { self.WY.set(data); },
