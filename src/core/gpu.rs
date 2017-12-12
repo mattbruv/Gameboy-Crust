@@ -214,6 +214,7 @@ impl Gpu {
 	pub fn cycles(&mut self, cycles: usize, interrupt: &mut InterruptHandler, video_sink: &mut VideoSink) {
 
 		if !self.display_enabled() {
+            self.LY.clear();
 			return;
 		}
 
@@ -225,9 +226,10 @@ impl Gpu {
 
 		self.scanline_cycles += cycles;
 		self.frame_cycles += cycles;
+        let ly = self.LY.get();
 
 		// we are in vblank
-		if self.frame_cycles > FRAME_PERIOD {
+		if ly >= 144 {
 
 			// We have just entered the Vblank period
 			if old_mode != StatusMode::VBlank {
@@ -236,15 +238,6 @@ impl Gpu {
 				interrupt.request_interrupt(InterruptFlag::VBlank);
 				request_interrupt = self.STAT.is_set(Bit::Bit4);
 				video_sink.append(self.frame_buffer.clone());
-			}
-
-			// we have completed vblank period, reset everything, update sink
-			if self.frame_cycles > VBLANK_PERIOD {
-				self.scanline_cycles = 0;
-				self.frame_cycles = 0;
-				self.LY.clear();
-                self.line_compare(interrupt);
-				self.set_mode(StatusMode::Oam);
 			}
 
 		} else {
@@ -259,9 +252,6 @@ impl Gpu {
 				OAM_PERIOD ... TRANSFER_PERIOD => { // Transfer
 					if old_mode != StatusMode::Transfer {
 						self.set_mode(StatusMode::Transfer);
-						// The LCD controller is now transferring data from VRAM to screen.
-						// Udpate the internal framebuffer at the current scanline to mimic this.
-						self.update_scanline();
 					}
 				},
 				TRANSFER_PERIOD ... HBLANK_PERIOD => { // H-Blank 
@@ -269,6 +259,7 @@ impl Gpu {
 					if old_mode != StatusMode::HBlank {
 						self.set_mode(StatusMode::HBlank);
 						request_interrupt = self.STAT.is_set(Bit::Bit3);
+						self.update_scanline();
 					}
 				},
 				_ => {},
@@ -286,12 +277,23 @@ impl Gpu {
 			self.LY.add(1);
 			self.scanline_cycles = 0;
             self.line_compare(interrupt);
+
+			// we have completed vblank period, reset everything, update sink
+			if self.LY.get() > 153 {
+				self.scanline_cycles = 0;
+				self.frame_cycles = 0;
+				self.LY.clear();
+                self.line_compare(interrupt);
+				self.set_mode(StatusMode::Oam);
+			}
+
 		}
 
 	}
     fn line_compare(&mut self, interrupt: &mut InterruptHandler) {
 		// LY == LYC Coincidence flag
-		if self.LY.get() == self.LYC.get() {
+        let enabled = self.STAT.is_set(Bit::Bit6);
+		if enabled && self.LY.get() == self.LYC.get() {
 			self.STAT.set_bit(Bit::Bit2);
 			interrupt.request_interrupt(InterruptFlag::Lcdc);
 		} else {
@@ -586,7 +588,6 @@ impl Gpu {
 	}
 
 	pub fn write(&mut self, address: u16, data: u8) {
-		let stat = self.LCDC.get();
 		match address {
 			BGP  => { self.BGP.set(data); },
 			OBP0 => { self.OBP0.set(data); },
@@ -599,7 +600,7 @@ impl Gpu {
 				self.STAT.set(high | low);
 			},
 			LYC => { self.LYC.set(data); },
-			LY => { self.LY.set(data); },
+			LY => { },//self.LY.clear(); }, // writing resets counter 
 			SCY => { self.SCY.set(data); },
 			SCX => { self.SCX.set(data); },
 			WY => { self.WY.set(data); },
