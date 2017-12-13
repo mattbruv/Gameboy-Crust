@@ -30,7 +30,7 @@ impl Registers {
 	pub fn new() -> Registers {
 		// Registers are set to these specific values after GB BIOS runs
 		Registers {
-			a: 0x01,
+			a: 0x11,
 			f: 0xB0,
 			b: 0x00,
 			c: 0x13,

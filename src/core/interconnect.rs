@@ -46,8 +46,8 @@ impl Interconnect {
 			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
 			VRAM_START ... VRAM_END => self.gpu.read(address),
 			ERAM_START ... ERAM_END => self.rom.read(address),
-			WRAM_START ... WRAM_END => self.wram.read(address - WRAM_START),
-			ECHO_START ... ECHO_END => self.wram.read(address - ECHO_START),
+			WRAM_START ... WRAM_END => self.wram.read(address),
+			ECHO_START ... ECHO_END => self.wram.read(address),
 			OAM_START  ... OAM_END  => self.gpu.read(address),
 			HRAM_START ... HRAM_END => self.hram.read(address - HRAM_START),
 			_ => panic!("Invalid Read")
@@ -63,10 +63,10 @@ impl Interconnect {
 			ROM_START  ... ROM_BANK_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => self.gpu.write(address, data),
 			ERAM_START ... ERAM_END => self.rom.write(address, data),
-			WRAM_START ... WRAM_END => self.wram.write(address - WRAM_START, data),
+			WRAM_START ... WRAM_END => self.wram.write(address, data),
 			ECHO_START ... ECHO_END => {
 				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.
-				self.wram.write(address - ECHO_START, data);
+				self.wram.write(address, data);
 				//panic!("Attempt to write to ECHO RAM");
 			},
 			OAM_START  ... OAM_END  => self.gpu.write(address, data),
@@ -111,6 +111,11 @@ impl Interconnect {
 			TIMA => Some(self.timer.read_counter()),
 			TMA =>  Some(self.timer.read_modulo()),
 			TAC =>  Some(self.timer.read_control()),
+
+            // Color Gameboy
+            SVBK => Some(self.wram.get_ram_bank()),
+            VBK  => Some(0), //Some(self.gpu.get_vram_bank()),
+
 			_ => None
 		}
 	}
@@ -127,6 +132,11 @@ impl Interconnect {
 			TIMA => self.timer.write_counter(data),
 			TMA => self.timer.write_modulo(data),
 			TAC => self.timer.write_control(data),
+
+            // Color Gameboy
+            SVBK => self.wram.set_ram_bank(data),
+            VBK => {},
+
 			_ => found = false,
 		}
 		found

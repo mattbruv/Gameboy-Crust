@@ -43,6 +43,11 @@ pub const WY: u16      = 0xFF4A; // Window Y position
 pub const WX: u16      = 0xFF4B; // Window X position
 pub const IE: u16      = 0xFFFF; // Interrupt Enable
 
+// Color Gameboy Registers
+pub const SVBK: u16    = 0xFF70; // CGB WRAM Bank
+pub const VBK: u16     = 0xFF4F; // CGB VRAM Bank
+pub const KEY1: u16    = 0xFF4D; // CPU operating speed
+
 // 16 KB ROM Bank 00 (in cartridge, fixed at bank 00)
 pub const ROM_START: u16 = 0x0000;
 pub const ROM_END: u16   = 0x3FFF;
