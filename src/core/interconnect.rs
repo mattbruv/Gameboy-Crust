@@ -44,11 +44,11 @@ impl Interconnect {
 		// No specific register, read general data
 		match address {
 			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
-			VRAM_START ... VRAM_END => self.gpu.read(address),
+			VRAM_START ... VRAM_END => self.gpu.read(address, false),
 			ERAM_START ... ERAM_END => self.rom.read(address),
 			WRAM_START ... WRAM_END => self.wram.read(address),
 			ECHO_START ... ECHO_END => self.wram.read(address),
-			OAM_START  ... OAM_END  => self.gpu.read(address),
+			OAM_START  ... OAM_END  => self.gpu.read(address, false),
 			HRAM_START ... HRAM_END => self.hram.read(address - HRAM_START),
 			_ => panic!("Invalid Read")
 		}
@@ -114,7 +114,7 @@ impl Interconnect {
 
             // Color Gameboy
             SVBK => Some(self.wram.get_ram_bank()),
-            VBK  => Some(0), //Some(self.gpu.get_vram_bank()),
+            VBK  => Some(self.gpu.get_vram_bank()),
 
 			_ => None
 		}
@@ -135,7 +135,7 @@ impl Interconnect {
 
             // Color Gameboy
             SVBK => self.wram.set_ram_bank(data),
-            VBK => {},
+            VBK => self.gpu.set_vram_bank(data),
 
 			_ => found = false,
 		}

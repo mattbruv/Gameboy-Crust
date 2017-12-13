@@ -8,7 +8,7 @@ const FRAME_HEIGHT: usize = 144;
 
 const TILE_RAM_END: u16 = 0x97FF;
 
-const VRAM_SIZE: usize = 8192; // 8Kb Bank
+const VRAM_SIZE: usize = 8192 * 2; // 8Kb Bank, 16KB for GBC
 const OAM_SIZE: usize = 160; // 160byte OAM memory
 
 // time in cycles for each mode to complete
@@ -98,6 +98,7 @@ pub struct Gpu {
 	pub WY: MemoryRegister,
 	pub WX: MemoryRegister,
 	scanline_counter: isize,
+    vram_bank: u8,
 }
 
 impl Gpu {
@@ -120,6 +121,7 @@ impl Gpu {
 			WY: MemoryRegister::new(0x00),
 			WX: MemoryRegister::new(0x00),
 			scanline_counter: TOTAL_SCANLINE_CYCLES,
+            vram_bank: 0,
 		}
 	}
 
@@ -560,28 +562,28 @@ impl Gpu {
 	// that are imposed on the CPU depending on LCD STAT register
 	#[inline]
 	fn read_raw(&self, address: u16) -> u8 {
-		self.Vram[(address - VRAM_START) as usize]
+        self.read(address, true)
 	}
 
-	pub fn read(&self, address: u16) -> u8 {
+	pub fn read(&self, address: u16, raw: bool) -> u8 {
 		match address {
 			VRAM_START ... VRAM_END => {
-				match self.get_mode() {
-					// Cannot access VRAM in Transfer Mode
-					StatusMode::Transfer => 0xFF,
-					_ => {
-						self.Vram[(address - VRAM_START) as usize]
-					},
-				}
+                let mode = self.get_mode();
+                if mode == StatusMode::Transfer && !raw {
+                    0xFF
+                } else {
+                    let offset = address - VRAM_START;
+                    let index = (self.vram_bank as u16 * 0x2000) + offset;
+                    self.Vram[index as usize]
+                }
 			},
 			OAM_START  ... OAM_END  => {
-				match self.get_mode() {
-					// Cannot access OAM in the following modes:
-					StatusMode::Transfer | StatusMode::Oam => 0xFF,
-					_ => {
-						self.Oam[(address - OAM_START) as usize]
-					},
-				}
+                let mode = self.get_mode();
+                if (mode == StatusMode::Transfer || mode == StatusMode::Oam) && !raw {
+                    0xFF
+                } else {
+                    self.Oam[(address - OAM_START) as usize]
+                }
 			},
 			_ => unreachable!(),
 		}
@@ -611,8 +613,11 @@ impl Gpu {
 				if self.get_mode() == StatusMode::Transfer {
 					return;
 				}
-				let index = address - VRAM_START;
+
+                let offset = address - VRAM_START;
+                let index = (self.vram_bank as u16 * 0x2000) + offset;
 				self.Vram[index as usize] = data;
+
 				// Mark this data as dirty so the tile cache updates
 				if address <= TILE_RAM_END {
 					let tile_id = index / 16;
@@ -670,6 +675,14 @@ impl Gpu {
 	fn display_enabled(&self) -> bool {
 		self.LCDC.is_set(Bit::Bit7)
 	}
+
+    pub fn get_vram_bank(&self) -> u8 {
+        self.vram_bank
+    }
+
+    pub fn set_vram_bank(&mut self, data: u8) {
+        self.vram_bank = data & 0x1;
+    }
 
 	pub fn dump(&self) {
 		println!("DUMPING VRAM");
