@@ -10,6 +10,7 @@ const TILE_RAM_END: u16 = 0x97FF;
 
 const VRAM_SIZE: usize = 8192; // 8Kb Bank, 16KB for GBC
 const OAM_SIZE: usize = 160; // 160byte OAM memory
+const PALETTE_RAM_SIZE: usize = 64; // 8 bytes per obj palette X 8 obj palettes
 
 // time in cycles for each mode to complete
 // Read -> Transfer -> Hblank (reapeat...) until Vblank
@@ -76,6 +77,11 @@ impl SpriteEntry {
 }
 
 pub struct Gpu {
+
+	// Color Palette RAM
+	cgb_pal_ram: Vec<u8>,
+	BGPI: MemoryRegister,
+
 	// Memory
 	vram: Vec<u8>,
 	cgb_vram: Vec<u8>,
@@ -106,6 +112,8 @@ pub struct Gpu {
 impl Gpu {
 	pub fn new() -> Gpu {
 		Gpu {
+			cgb_pal_ram: vec![0; PALETTE_RAM_SIZE],
+			BGPI: MemoryRegister::new(0x00),
 			vram: vec![0; VRAM_SIZE],
 			cgb_vram: vec![0; VRAM_SIZE],
 			oam:  vec![0; OAM_SIZE],
@@ -729,6 +737,68 @@ impl Gpu {
     pub fn set_vram_bank(&mut self, data: u8) {
         self.vram_bank = data & 0x1;
     }
+
+    pub fn get_bg_pal_index(&self) -> u8 {
+    	self.BGPI.get()
+    }
+
+	pub fn set_bg_pal_index(&mut self, data: u8) {
+		self.BGPI.set(data);
+	}
+
+	pub fn get_bg_pal_data(&self) -> u8 {
+		0
+	}
+
+	pub fn set_bg_pal_data(&mut self, data: u8) {
+
+		if self.get_mode() == StatusMode::Transfer { return; }
+
+		let pal_index = self.get_bg_pal_index();
+		let index = pal_index & 0x3F;
+		let auto_increment = pal_index & Bit::Bit7 as u8;
+
+		self.cgb_pal_ram[index as usize] = data;
+
+		if auto_increment > 0 {
+			let mut new_index = index + 1;
+			if new_index > 63 {
+				new_index = 0;
+			}
+			let adjusted = auto_increment | new_index;
+			self.BGPI.set(adjusted);
+		}
+
+
+		println!("{:02x} written to {}", data, index);
+		//println!("{:?}", self.cgb_pal_ram);
+	}
+
+	fn get_cgb_pal_color(&self, palette_id: u8, color_id: u8) -> u32 {
+		let offset = palette_id * 8;
+		let first_byte  = self.cgb_pal_ram[offset + (color_id * 2) as usize];
+		let second_byte = self.cgb_pal_ram[offset + (color_id * 2) + 1 as usize];
+	}
+
+	// Using color gameboy palette data
+	// Converts a 0-3 shade to the appropriate 32bit palette color
+	fn cgb_colorize(&self, shade: u8, palette_id: u8, palette: u8) -> u32 {
+		let color_values = [
+			self.get_cgb_pal_color(palette_id, 0, // 0
+			self.get_cgb_pal_color(palette_id, 1, // 1
+			self.get_cgb_pal_color(palette_id, 2, // 2
+			self.get_cgb_pal_color(palette_id, 3, // 3
+		];
+		let real_shade = match shade {
+			0 =>  palette & 0b00000011,
+			1 => (palette & 0b00001100) >> 2,
+			2 => (palette & 0b00110000) >> 4,
+			3 => (palette & 0b11000000) >> 6,
+			_ => panic!("Invalid Palette Shade!")
+		};
+		color_values[real_shade as usize]
+	}
+
 
 	pub fn dump(&self) {
 		println!("DUMPING VRAM");

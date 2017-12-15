@@ -122,6 +122,9 @@ impl Interconnect {
             SVBK => Some(self.wram.get_ram_bank()),
             VBK  => Some(self.gpu.get_vram_bank()),
 
+            BGPI => Some(self.gpu.get_bg_pal_index()),
+            BGPD => Some(self.gpu.get_bg_pal_data()),
+
 			_ => None
 		}
 	}
@@ -142,6 +145,9 @@ impl Interconnect {
             // Color Gameboy
             SVBK => self.wram.set_ram_bank(data),
             VBK => self.gpu.set_vram_bank(data),
+
+            BGPI => self.gpu.set_bg_pal_index(data),
+            BGPD => self.gpu.set_bg_pal_data(data),
 
 			_ => found = false,
 		}
