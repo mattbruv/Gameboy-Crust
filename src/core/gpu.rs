@@ -370,6 +370,11 @@ impl Gpu {
 			let lookup = tile_map_location + tile_map_index;
 			let tile_pattern = self.read_raw(lookup, 0);
 
+			let color_attributes = self.read_raw(lookup, 1);
+			let bank = (color_attributes & Bit::Bit3 as u8) >> 3;
+			let h_flip = color_attributes & Bit::Bit5 as u8 > 0;
+			let v_flip = color_attributes & Bit::Bit6 as u8 > 0;
+
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
 					let adjusted = ((tile_pattern as i8) as i16) * 16;
@@ -389,8 +394,10 @@ impl Gpu {
 				self.refresh_tile(tile_id, bank);
 			}
 
-			let pixel_x = x % 8;
-			let pixel_y = y % 8;
+			let mut pixel_x = x % 8;
+			if h_flip { pixel_x = ((pixel_x as i8 - 7) * -1) as u8; }
+			let mut pixel_y = y % 8;
+			if v_flip { pixel_y = ((pixel_y as i8 - 7) * -1) as u8; }
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x) as usize];
 			let color = self.colorize(pixel, palette);
 			let offset = buffer_start + i;
@@ -436,6 +443,8 @@ impl Gpu {
 			let tile_map_index = (row as u16 * 32) + column as u16;
 			let offset = tile_map_location + tile_map_index;
 			let tile_pattern = self.read_raw(offset, 0);
+			let color_attributes = self.read_raw(offset, 1);
+			let bank = (color_attributes & Bit::Bit3 as u8) >> 3;
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
