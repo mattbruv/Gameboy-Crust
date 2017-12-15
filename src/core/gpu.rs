@@ -8,7 +8,7 @@ const FRAME_HEIGHT: usize = 144;
 
 const TILE_RAM_END: u16 = 0x97FF;
 
-const VRAM_SIZE: usize = 8192 * 2; // 8Kb Bank, 16KB for GBC
+const VRAM_SIZE: usize = 8192; // 8Kb Bank, 16KB for GBC
 const OAM_SIZE: usize = 160; // 160byte OAM memory
 
 // time in cycles for each mode to complete
@@ -77,10 +77,12 @@ impl SpriteEntry {
 
 pub struct Gpu {
 	// Memory
-	Vram: Vec<u8>,
-	Oam: Vec<u8>,
+	vram: Vec<u8>,
+	cgb_vram: Vec<u8>,
+	oam: Vec<u8>,
 	// Tile Cache
 	tile_cache: Vec<TileEntry>, // cache rules everything around me
+	cgb_tile_cache: Vec<TileEntry>,
 	// Sprite Table
 	sprite_table: Vec<SpriteEntry>,
 	// Frame Buffer
@@ -104,9 +106,11 @@ pub struct Gpu {
 impl Gpu {
 	pub fn new() -> Gpu {
 		Gpu {
-			Vram: vec![0; VRAM_SIZE],
-			Oam:  vec![0; OAM_SIZE],
+			vram: vec![0; VRAM_SIZE],
+			cgb_vram: vec![0; VRAM_SIZE],
+			oam:  vec![0; OAM_SIZE],
 			tile_cache: vec![TileEntry::new(); 384],
+			cgb_tile_cache: vec![TileEntry::new(); 384],
 			sprite_table: vec![SpriteEntry::new(); 40],
 			frame_buffer: vec![0xFF00FF; FRAME_WIDTH * FRAME_HEIGHT],
 			LCDC: MemoryRegister::new(0x91),
@@ -155,13 +159,13 @@ impl Gpu {
 		// Loop entire VRAM as tiles
 		for index in 0..384 {
 
-			if self.tile_cache[index].dirty {
-				self.refresh_tile(index);
+			if self.cgb_tile_cache[index].dirty {
+				self.refresh_tile(index, 1); // we dont really care about this any more
 			}
 
 			for y in 0..8 {
 				for x in 0..8 {
-					let raw_pixel = self.tile_cache[index].pixels[(y * 8) + x];
+					let raw_pixel = self.cgb_tile_cache[index].pixels[(y * 8) + x];
 					let color = self.colorize(raw_pixel, palette);
 					let column = index % 16;
 					let row = index / 16;
@@ -175,8 +179,16 @@ impl Gpu {
 		display
 	}
 
+	pub fn get_tile(&self, id: usize, bank: u8) -> TileEntry {
+		match bank {
+			0 => self.tile_cache[id].clone(),
+			1 => self.cgb_tile_cache[id].clone(),
+			_ => unreachable!()
+		}
+	}
+
 	// Updates the tile cache with the current data in VRAM for that tile
-	pub fn refresh_tile(&mut self, id: usize) {
+	pub fn refresh_tile(&mut self, id: usize, bank: u8) {
 		//let entry = &mut self.tile_cache[id];
 
 		let offset = VRAM_START + (id * 16) as u16;
@@ -185,8 +197,8 @@ impl Gpu {
 		let mut tile = vec![0; 64];
 
 		for y in 0..8 {
-			let low_byte = &self.read_raw(offset + (y * 2));
-			let high_byte = &self.read_raw(offset + (y * 2) + 1);
+			let low_byte  = &self.read_raw(offset + (y * 2), bank);
+			let high_byte = &self.read_raw(offset + (y * 2) + 1, bank);
 			let mut x: i8 = 7;
 			// Loop through all the pixels in a y value
 			while x >= 0 {
@@ -203,8 +215,17 @@ impl Gpu {
 			}
 		}
 
-		self.tile_cache[id].dirty = false;
-		self.tile_cache[id].pixels = tile;
+		match bank {
+			0 => {
+				self.tile_cache[id].dirty = false;
+				self.tile_cache[id].pixels = tile;
+			},
+			1 => {
+				self.cgb_tile_cache[id].dirty = false;
+				self.cgb_tile_cache[id].pixels = tile;
+			},
+			_ => unreachable!()
+		};
 	}
 
 	pub fn cycles(&mut self, cycles: usize, interrupt: &mut InterruptHandler, video_sink: &mut VideoSink) {
@@ -324,6 +345,7 @@ impl Gpu {
 
 	#[inline]
 	fn draw_background(&mut self, bg_priority: &mut Vec<bool>) {
+		let bank = self.vram_bank;
 		let palette = self.BGP.get();
 		// BG Tile Map Display Select
 		let tile_map_location = match self.LCDC.is_set(Bit::Bit3) {
@@ -346,7 +368,7 @@ impl Gpu {
 			let column = (x / 8);
 			let tile_map_index = (row as u16 * 32) + column as u16;
 			let lookup = tile_map_location + tile_map_index;
-			let tile_pattern = self.read_raw(lookup);
+			let tile_pattern = self.read_raw(lookup, 0);
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
@@ -360,13 +382,13 @@ impl Gpu {
 			};
 
 			let tile_id = self.address_to_tile_id(vram_location);
+			let tile = self.get_tile(tile_id, bank);
 
 			// Refresh the tile if it has been overwritten in VRAM
-			if self.tile_cache[tile_id].dirty {
-				self.refresh_tile(tile_id);
+			if tile.dirty {
+				self.refresh_tile(tile_id, bank);
 			}
 
-			let tile = &self.tile_cache[tile_id];
 			let pixel_x = x % 8;
 			let pixel_y = y % 8;
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x) as usize];
@@ -379,6 +401,7 @@ impl Gpu {
 
 	#[inline]
 	fn draw_window(&mut self, bg_priority: &mut Vec<bool>) {
+		let bank = self.vram_bank;
 		let window_y = self.WY.get();
 		let window_x = self.WX.get().wrapping_sub(7);
 		let y = self.LY.get();
@@ -412,7 +435,7 @@ impl Gpu {
 			let column = i as u8 / 8;
 			let tile_map_index = (row as u16 * 32) + column as u16;
 			let offset = tile_map_location + tile_map_index;
-			let tile_pattern = self.read_raw(offset);
+			let tile_pattern = self.read_raw(offset, 0);
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
@@ -426,13 +449,13 @@ impl Gpu {
 			};
 
 			let tile_id = self.address_to_tile_id(vram_location);
+			let tile = self.get_tile(tile_id, bank);
 
-			if self.tile_cache[tile_id].dirty {
-				self.refresh_tile(tile_id);
+			if tile.dirty {
+				self.refresh_tile(tile_id, bank);
 			}
 
 			let pixel_x = i % 8;
-			let tile = &self.tile_cache[tile_id];
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
 			let color = self.colorize(pixel, palette);
 			let buffer_offset = buffer_start + i;
@@ -485,8 +508,10 @@ impl Gpu {
 				false => sprite.tile_id,
 			};
 
+			let bank = self.vram_bank;
+
 			if self.tile_cache[tile_id as usize].dirty {
-				self.refresh_tile(tile_id as usize);
+				self.refresh_tile(tile_id as usize, bank);
 			}
 
 			let tile = &self.tile_cache[tile_id as usize];
@@ -561,11 +586,11 @@ impl Gpu {
 	// This is necessary to bypass the memory access restrictions
 	// that are imposed on the CPU depending on LCD STAT register
 	#[inline]
-	fn read_raw(&self, address: u16) -> u8 {
-        self.read(address, true)
+	fn read_raw(&self, address: u16, bank: u8) -> u8 {
+        self.read(address, true, bank)
 	}
 
-	pub fn read(&self, address: u16, raw: bool) -> u8 {
+	pub fn read(&self, address: u16, raw: bool, bank: u8) -> u8 {
 		match address {
 			VRAM_START ... VRAM_END => {
                 let mode = self.get_mode();
@@ -573,8 +598,11 @@ impl Gpu {
                     0xFF
                 } else {
                     let offset = address - VRAM_START;
-                    let index = (self.vram_bank as u16 * 0x2000) + offset;
-                    self.Vram[index as usize]
+                    match bank {
+                    	0 => self.vram[offset as usize],
+                    	1 => self.cgb_vram[offset as usize],
+                    	_ => unreachable!(),
+                    }
                 }
 			},
 			OAM_START  ... OAM_END  => {
@@ -582,14 +610,14 @@ impl Gpu {
                 if (mode == StatusMode::Transfer || mode == StatusMode::Oam) && !raw {
                     0xFF
                 } else {
-                    self.Oam[(address - OAM_START) as usize]
+                    self.oam[(address - OAM_START) as usize]
                 }
 			},
 			_ => unreachable!(),
 		}
 	}
 
-	pub fn write(&mut self, address: u16, data: u8) {
+	pub fn write(&mut self, address: u16, data: u8, bank: u8) {
 		match address {
 			BGP  => { self.BGP.set(data); },
 			OBP0 => { self.OBP0.set(data); },
@@ -602,7 +630,7 @@ impl Gpu {
 				self.STAT.set(high | low);
 			},
 			LYC => { self.LYC.set(data); },
-			LY => { self.LY.clear(); }, // writing resets counter 
+			LY => { self.LY.clear(); }, // writing resets counter
 			SCY => { self.SCY.set(data); },
 			SCX => { self.SCX.set(data); },
 			WY => { self.WY.set(data); },
@@ -615,13 +643,22 @@ impl Gpu {
 				}
 
                 let offset = address - VRAM_START;
-                let index = (self.vram_bank as u16 * 0x2000) + offset;
-				self.Vram[index as usize] = data;
+                match bank {
+                	0 => self.vram[offset as usize] = data,
+                	1 => self.cgb_vram[offset as usize] = data,
+                	_ => unreachable!(),
+                };
 
 				// Mark this data as dirty so the tile cache updates
 				if address <= TILE_RAM_END {
-					let tile_id = index / 16;
-					self.tile_cache[tile_id as usize].dirty = true;
+					let tile_id = offset / 16;
+
+					match bank {
+	                	0 => self.tile_cache[tile_id as usize].dirty = true,
+	                	1 => self.cgb_tile_cache[tile_id as usize].dirty = true,
+	                	_ => unreachable!(),
+	                };
+
 				}
 			},
 
@@ -629,7 +666,7 @@ impl Gpu {
 				match self.get_mode() {
 					StatusMode::Oam | StatusMode::Transfer => { return; },
 					_ => {
-						self.Oam[(address - OAM_START) as usize] = data;
+						self.oam[(address - OAM_START) as usize] = data;
 						self.update_sprite(address, data);
 					}
 				};
@@ -686,7 +723,7 @@ impl Gpu {
 
 	pub fn dump(&self) {
 		println!("DUMPING VRAM");
-		dump("vram.bin", &self.Vram);
-		dump("oam.bin", &self.Oam);
+		dump("vram.bin", &self.vram);
+		dump("oam.bin", &self.oam);
 	}
 }

@@ -44,11 +44,14 @@ impl Interconnect {
 		// No specific register, read general data
 		match address {
 			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
-			VRAM_START ... VRAM_END => self.gpu.read(address, false),
+			VRAM_START ... VRAM_END => {
+				let bank = self.gpu.get_vram_bank();
+				self.gpu.read(address, false, bank)
+			},
 			ERAM_START ... ERAM_END => self.rom.read(address),
 			WRAM_START ... WRAM_END => self.wram.read(address),
 			ECHO_START ... ECHO_END => self.wram.read(address),
-			OAM_START  ... OAM_END  => self.gpu.read(address, false),
+			OAM_START  ... OAM_END  => self.gpu.read(address, false, 0),
 			HRAM_START ... HRAM_END => self.hram.read(address - HRAM_START),
 			_ => panic!("Invalid Read")
 		}
@@ -61,7 +64,10 @@ impl Interconnect {
 		}
 		match address {
 			ROM_START  ... ROM_BANK_END  => self.rom.write(address, data),
-			VRAM_START ... VRAM_END => self.gpu.write(address, data),
+			VRAM_START ... VRAM_END => {
+				let bank = self.gpu.get_vram_bank();
+				self.gpu.write(address, data, bank);
+			},
 			ERAM_START ... ERAM_END => self.rom.write(address, data),
 			WRAM_START ... WRAM_END => self.wram.write(address, data),
 			ECHO_START ... ECHO_END => {
@@ -69,7 +75,7 @@ impl Interconnect {
 				self.wram.write(address, data);
 				//panic!("Attempt to write to ECHO RAM");
 			},
-			OAM_START  ... OAM_END  => self.gpu.write(address, data),
+			OAM_START  ... OAM_END  => self.gpu.write(address, data, 0),
 			HRAM_START ... HRAM_END => self.hram.write(address - HRAM_START, data),
 			_ => panic!("Invalid Write")
 		}
@@ -125,7 +131,7 @@ impl Interconnect {
 		match address {
 			P1 => self.joypad.write(data),
 			BGP | OBP0 | OBP1 | LCDC | STAT |
-			LY | LYC | SCY | SCX | WX | WY => self.gpu.write(address, data),
+			LY | LYC | SCY | SCX | WX | WY => self.gpu.write(address, data, 0),
 			OAM_DMA => self.oam_dma.request(data),
 			IE | IF => self.interrupt.write(address, data),
 			DIV => self.timer.write_div(data),
