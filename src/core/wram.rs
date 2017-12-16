@@ -35,7 +35,7 @@ impl Wram {
                 let offset = (bank as u16 * 0x1000) + rel_address;
                 self.bytes[offset as usize]
             },
-            _ => unreachable!(),
+            _ => unreachable!("Addr: ${:04X}", address),
         }
 	}
 
@@ -57,7 +57,7 @@ impl Wram {
             _ => unreachable!(),
         }
 	}
-	
+
     // SVBK read
     pub fn get_ram_bank(&self) -> u8 {
         self.ram_bank

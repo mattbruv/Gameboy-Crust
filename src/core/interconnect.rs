@@ -50,7 +50,7 @@ impl Interconnect {
 			},
 			ERAM_START ... ERAM_END => self.rom.read(address),
 			WRAM_START ... WRAM_END => self.wram.read(address),
-			ECHO_START ... ECHO_END => self.wram.read(address),
+			ECHO_START ... ECHO_END => self.wram.read(address - 0x2000),
 			OAM_START  ... OAM_END  => self.gpu.read(address, false, 0),
 			HRAM_START ... HRAM_END => self.hram.read(address - HRAM_START),
 			_ => panic!("Invalid Read")
@@ -72,7 +72,7 @@ impl Interconnect {
 			WRAM_START ... WRAM_END => self.wram.write(address, data),
 			ECHO_START ... ECHO_END => {
 				// Note: Use of the area from 0xE000 to 0xFDFF is prohibited.
-				self.wram.write(address, data);
+				self.wram.write(address - 0x2000, data);
 				//panic!("Attempt to write to ECHO RAM");
 			},
 			OAM_START  ... OAM_END  => self.gpu.write(address, data, 0),

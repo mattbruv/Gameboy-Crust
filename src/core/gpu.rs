@@ -382,6 +382,7 @@ impl Gpu {
 			let bank = (color_attributes & Bit::Bit3 as u8) >> 3;
 			let h_flip = color_attributes & Bit::Bit5 as u8 > 0;
 			let v_flip = color_attributes & Bit::Bit6 as u8 > 0;
+			let palette_id = color_attributes & 0x7; // bits 0-2
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
@@ -407,7 +408,8 @@ impl Gpu {
 			let mut pixel_y = y % 8;
 			if v_flip { pixel_y = ((pixel_y as i8 - 7) * -1) as u8; }
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x) as usize];
-			let color = self.colorize(pixel, palette);
+			//let color = self.colorize(pixel, palette);
+			let color = self.cgb_colorize(pixel, palette_id, palette);
 			let offset = buffer_start + i;
 			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[offset as usize] = color;
@@ -752,7 +754,7 @@ impl Gpu {
 
 	pub fn set_bg_pal_data(&mut self, data: u8) {
 
-		if self.get_mode() == StatusMode::Transfer { return; }
+		//if self.get_mode() == StatusMode::Transfer { return; }
 
 		let pal_index = self.get_bg_pal_index();
 		let index = pal_index & 0x3F;
@@ -768,26 +770,40 @@ impl Gpu {
 			let adjusted = auto_increment | new_index;
 			self.BGPI.set(adjusted);
 		}
-
-
-		println!("{:02x} written to {}", data, index);
+		//println!("{:02x} written to {}", data, index);
 		//println!("{:?}", self.cgb_pal_ram);
 	}
 
 	fn get_cgb_pal_color(&self, palette_id: u8, color_id: u8) -> u32 {
 		let offset = palette_id * 8;
-		let first_byte  = self.cgb_pal_ram[offset + (color_id * 2) as usize];
-		let second_byte = self.cgb_pal_ram[offset + (color_id * 2) + 1 as usize];
+		let index = offset + (color_id * 2);
+		let first_byte  = self.cgb_pal_ram[index as usize];
+		let second_byte = self.cgb_pal_ram[(index + 1) as usize];
+
+		let combined = ((second_byte as u16) << 8) | first_byte as u16;
+
+		let red = combined & 0x1F;
+		let green = (combined >> 5) & 0x1F;
+		let blue = (combined >> 10) & 0x1F;
+
+		//FLOOR(256/32,1)*K4
+		let r = (256 / 32) * red;
+		let g = (256 / 32) * green;
+		let b = (256 / 32) * blue;
+
+		let rgb = ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
+
+		rgb
 	}
 
 	// Using color gameboy palette data
 	// Converts a 0-3 shade to the appropriate 32bit palette color
 	fn cgb_colorize(&self, shade: u8, palette_id: u8, palette: u8) -> u32 {
 		let color_values = [
-			self.get_cgb_pal_color(palette_id, 0, // 0
-			self.get_cgb_pal_color(palette_id, 1, // 1
-			self.get_cgb_pal_color(palette_id, 2, // 2
-			self.get_cgb_pal_color(palette_id, 3, // 3
+			self.get_cgb_pal_color(palette_id, 0), // 0
+			self.get_cgb_pal_color(palette_id, 1), // 1
+			self.get_cgb_pal_color(palette_id, 2), // 2
+			self.get_cgb_pal_color(palette_id, 3), // 3
 		];
 		let real_shade = match shade {
 			0 =>  palette & 0b00000011,
