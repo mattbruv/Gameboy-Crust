@@ -60,6 +60,8 @@ struct SpriteEntry {
 	x_flip: bool,
 	y_flip: bool,
 	use_palette_one: bool,
+	bank: u8,
+	palette: u8,
 }
 
 impl SpriteEntry {
@@ -72,6 +74,8 @@ impl SpriteEntry {
 			x_flip: false,
 			y_flip: false,
 			use_palette_one: false,
+			bank: 0,
+			palette: 0,
 		}
 	}
 }
@@ -353,7 +357,6 @@ impl Gpu {
 
 	#[inline]
 	fn draw_background(&mut self, bg_priority: &mut Vec<bool>) {
-		let bank = self.vram_bank;
 		let palette = self.BGP.get();
 		// BG Tile Map Display Select
 		let tile_map_location = match self.LCDC.is_set(Bit::Bit3) {
@@ -418,7 +421,6 @@ impl Gpu {
 
 	#[inline]
 	fn draw_window(&mut self, bg_priority: &mut Vec<bool>) {
-		let bank = self.vram_bank;
 		let window_y = self.WY.get();
 		let window_x = self.WX.get().wrapping_sub(7);
 		let y = self.LY.get();
@@ -440,7 +442,6 @@ impl Gpu {
 		let buffer_start = y as usize * FRAME_WIDTH;
 
 		let row = (y - window_y) / 8;
-		// THE PROBLEM IS WITH THE ROW
 
 		let debug_line_color = ((y - window_y) as f32 * 1.77) as u8;
 		let mut debug_color: u32 = (debug_line_color as u32) << 16;
@@ -453,8 +454,12 @@ impl Gpu {
 			let tile_map_index = (row as u16 * 32) + column as u16;
 			let offset = tile_map_location + tile_map_index;
 			let tile_pattern = self.read_raw(offset, 0);
+
 			let color_attributes = self.read_raw(offset, 1);
 			let bank = (color_attributes & Bit::Bit3 as u8) >> 3;
+			let h_flip = color_attributes & Bit::Bit5 as u8 > 0;
+			let v_flip = color_attributes & Bit::Bit6 as u8 > 0;
+			let palette_id = color_attributes & 0x7; // bits 0-2
 
 			let vram_location = match self.LCDC.is_set(Bit::Bit4) {
 				false => {
@@ -470,13 +475,14 @@ impl Gpu {
 			let tile_id = self.address_to_tile_id(vram_location);
 			let tile = self.get_tile(tile_id, bank);
 
+			// Refresh the tile if it has been overwritten in VRAM
 			if tile.dirty {
 				self.refresh_tile(tile_id, bank);
 			}
 
 			let pixel_x = i % 8;
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
-			let color = self.colorize(pixel, palette);
+			let color = self.cgb_colorize(pixel, palette_id, palette);
 			let buffer_offset = buffer_start + i;
 			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[buffer_offset as usize] = color;
@@ -527,13 +533,13 @@ impl Gpu {
 				false => sprite.tile_id,
 			};
 
-			let bank = self.vram_bank;
+			let bank = sprite.bank;
+			let tile = self.get_tile(tile_id as usize, bank);
 
-			if self.tile_cache[tile_id as usize].dirty {
+			if tile.dirty {
 				self.refresh_tile(tile_id as usize, bank);
 			}
 
-			let tile = &self.tile_cache[tile_id as usize];
 			let palette = match sprite.use_palette_one {
 				false => self.OBP0.get(),
 				true  => self.OBP1.get(),
@@ -708,6 +714,8 @@ impl Gpu {
 				sprite.y_flip = (data & Bit::Bit6 as u8) > 0;
 				sprite.x_flip = (data & Bit::Bit5 as u8) > 0;
 				sprite.use_palette_one = (data & Bit::Bit4 as u8) > 0;
+				sprite.bank = (data & Bit::Bit3 as u8) >> 3;
+				sprite.palette = data & 0x7;
 			},
 			_ => unreachable!()
 		};

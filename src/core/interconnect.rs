@@ -43,6 +43,10 @@ impl Interconnect {
 
 		// No specific register, read general data
 		match address {
+			0xFF51 ... 0xFF55 => {
+				println!("READ CGB DMA");
+				0
+			},
 			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
 			VRAM_START ... VRAM_END => {
 				let bank = self.gpu.get_vram_bank();
@@ -63,6 +67,9 @@ impl Interconnect {
 			return;
 		}
 		match address {
+			0xFF51 ... 0xFF55 => {
+				println!("CGB DMA");
+			},
 			ROM_START  ... ROM_BANK_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => {
 				let bank = self.gpu.get_vram_bank();
