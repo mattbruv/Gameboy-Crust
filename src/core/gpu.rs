@@ -416,7 +416,7 @@ impl Gpu {
 			if v_flip { pixel_y = ((pixel_y as i8 - 7) * -1) as u8; }
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x) as usize];
 			//let color = self.colorize(pixel, palette);
-			let color = self.cgb_colorize(pixel, palette_id, palette);
+			let color = self.cgb_colorize(pixel, palette_id);
 			let offset = buffer_start + i;
 			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[offset as usize] = color;
@@ -428,7 +428,6 @@ impl Gpu {
 		let window_y = self.WY.get();
 		let window_x = self.WX.get().wrapping_sub(7);
 		let y = self.LY.get();
-		let palette = self.BGP.get();
 
 		if y < window_y { return; }
 
@@ -446,11 +445,6 @@ impl Gpu {
 		let buffer_start = y as usize * FRAME_WIDTH;
 
 		let row = (y - window_y) / 8;
-
-		let debug_line_color = ((y - window_y) as f32 * 1.77) as u8;
-		let mut debug_color: u32 = (debug_line_color as u32) << 16;
-		//debug_color |= ((debug_line_color as u32) << 8);
-		debug_color |= (debug_line_color as u32);
 
 		for i in 0..FRAME_WIDTH {
 			let display_x = (i as u8).wrapping_add(window_x);
@@ -486,7 +480,7 @@ impl Gpu {
 
 			let pixel_x = i % 8;
 			let pixel = tile.pixels[((pixel_y * 8) + pixel_x as u8) as usize];
-			let color = self.cgb_colorize(pixel, palette_id, palette);
+			let color = self.cgb_colorize(pixel, palette_id);
 			let buffer_offset = buffer_start + i;
 			if pixel != 0 { bg_priority[i] = true; }
 			self.frame_buffer[buffer_offset as usize] = color;
@@ -537,7 +531,7 @@ impl Gpu {
 				false => sprite.tile_id,
 			};
 
-			let bank = self.vram_bank; //sprite.bank;
+			let bank = sprite.bank;
 			let tile = self.get_tile(tile_id as usize, bank);
             let palette_id = sprite.palette;
 
@@ -570,8 +564,7 @@ impl Gpu {
 						continue;
 					}
 				}
-                let palette = 0;
-				let color = self.sprite_colorize(pixel, palette_id, palette);
+				let color = self.sprite_colorize(pixel, palette_id);
 				let offset_x = adjusted_x as i32;
 				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
 				let offset = offset_y + offset_x;
@@ -786,7 +779,7 @@ impl Gpu {
 			let adjusted = auto_increment | new_index;
 			self.OBPI.set(adjusted);
 		}
-		println!("{:02x} written to palette RAM ID: {}", data, index);
+		//println!("{:02x} written to palette RAM ID: {}", data, index);
 	}
 
 	fn get_sprite_pal_color(&self, palette_id: u8, color_id: u8) -> u32 {
@@ -871,7 +864,7 @@ impl Gpu {
 
 	// Using color gameboy palette data
 	// Converts a 0-3 shade to the appropriate 32bit palette color
-	fn cgb_colorize(&self, shade: u8, palette_id: u8, palette: u8) -> u32 {
+	fn cgb_colorize(&self, shade: u8, palette_id: u8) -> u32 {
 		let color_values = [
 			self.get_cgb_pal_color(palette_id, 0), // 0
 			self.get_cgb_pal_color(palette_id, 1), // 1
@@ -883,7 +876,7 @@ impl Gpu {
 
 	// Using color gameboy palette data
 	// Converts a 0-3 shade to the appropriate 32bit palette color for sprites
-	fn sprite_colorize(&self, shade: u8, palette_id: u8, palette: u8) -> u32 {
+	fn sprite_colorize(&self, shade: u8, palette_id: u8) -> u32 {
 		let color_values = [
 			self.get_sprite_pal_color(palette_id, 0), // 0
 			self.get_sprite_pal_color(palette_id, 1), // 1
