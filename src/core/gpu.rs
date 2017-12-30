@@ -84,7 +84,9 @@ pub struct Gpu {
 
 	// Color Palette RAM
 	cgb_pal_ram: Vec<u8>,
+	sprite_pal_ram: Vec<u8>,
 	BGPI: MemoryRegister,
+	OBPI: MemoryRegister,
 
 	// Memory
 	vram: Vec<u8>,
@@ -117,7 +119,9 @@ impl Gpu {
 	pub fn new() -> Gpu {
 		Gpu {
 			cgb_pal_ram: vec![0; PALETTE_RAM_SIZE],
+			sprite_pal_ram: vec![0; PALETTE_RAM_SIZE],
 			BGPI: MemoryRegister::new(0x00),
+			OBPI: MemoryRegister::new(0x00),
 			vram: vec![0; VRAM_SIZE],
 			cgb_vram: vec![0; VRAM_SIZE],
 			oam:  vec![0; OAM_SIZE],
@@ -533,17 +537,18 @@ impl Gpu {
 				false => sprite.tile_id,
 			};
 
-			let bank = sprite.bank;
+			let bank = self.vram_bank; //sprite.bank;
 			let tile = self.get_tile(tile_id as usize, bank);
+            let palette_id = sprite.palette;
 
 			if tile.dirty {
 				self.refresh_tile(tile_id as usize, bank);
 			}
-
-			let palette = match sprite.use_palette_one {
+            
+			/*let palette = match sprite.use_palette_one {
 				false => self.OBP0.get(),
 				true  => self.OBP1.get(),
-			};
+			};*/
 
 			for pixel_x in 0..8 {
 				let adjusted_x = (sprite_x + pixel_x as i32) as u8;
@@ -565,7 +570,8 @@ impl Gpu {
 						continue;
 					}
 				}
-				let color = self.colorize(pixel, palette);
+                let palette = 0;
+				let color = self.sprite_colorize(pixel, palette_id, palette);
 				let offset_x = adjusted_x as i32;
 				let offset_y = scanline_y as i32 * FRAME_WIDTH as i32;
 				let offset = offset_y + offset_x;
@@ -748,6 +754,63 @@ impl Gpu {
         self.vram_bank = data & 0x1;
     }
 
+    /***** SPRITE PALETTE DATA *****/
+
+    pub fn get_sprite_pal_index(&self) -> u8 {
+    	self.OBPI.get()
+    }
+
+	pub fn set_sprite_pal_index(&mut self, data: u8) {
+		self.OBPI.set(data);
+	}
+
+	pub fn get_sprite_pal_data(&self) -> u8 {
+		let pal_index = self.get_sprite_pal_index();
+		let index = pal_index & 0x3F;
+		self.sprite_pal_ram[index as usize]
+	}
+
+	pub fn set_sprite_pal_data(&mut self, data: u8) {
+
+		let pal_index = self.get_sprite_pal_index();
+		let index = pal_index & 0x3F;
+		let auto_increment = pal_index & Bit::Bit7 as u8;
+
+		self.sprite_pal_ram[index as usize] = data;
+
+		if auto_increment > 0 {
+			let mut new_index = index + 1;
+			if new_index > 63 {
+				new_index = 0;
+			}
+			let adjusted = auto_increment | new_index;
+			self.OBPI.set(adjusted);
+		}
+		println!("{:02x} written to palette RAM ID: {}", data, index);
+	}
+
+	fn get_sprite_pal_color(&self, palette_id: u8, color_id: u8) -> u32 {
+		let offset = palette_id * 8;
+		let index = offset + (color_id * 2);
+		let first_byte  = self.sprite_pal_ram[index as usize];
+		let second_byte = self.sprite_pal_ram[(index + 1) as usize];
+
+		let combined = ((second_byte as u16) << 8) | first_byte as u16;
+
+		let red = combined & 0x1F;
+		let green = (combined >> 5) & 0x1F;
+		let blue = (combined >> 10) & 0x1F;
+
+		//FLOOR(256/32,1)*K4
+		let r = (256 / 32) * red;
+		let g = (256 / 32) * green;
+		let b = (256 / 32) * blue;
+
+		let rgb = ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
+
+		rgb
+	}
+
     pub fn get_bg_pal_index(&self) -> u8 {
     	self.BGPI.get()
     }
@@ -757,7 +820,9 @@ impl Gpu {
 	}
 
 	pub fn get_bg_pal_data(&self) -> u8 {
-		0
+		let pal_index = self.get_bg_pal_index();
+		let index = pal_index & 0x3F;
+		self.cgb_pal_ram[index as usize]
 	}
 
 	pub fn set_bg_pal_data(&mut self, data: u8) {
@@ -813,16 +878,20 @@ impl Gpu {
 			self.get_cgb_pal_color(palette_id, 2), // 2
 			self.get_cgb_pal_color(palette_id, 3), // 3
 		];
-		let real_shade = match shade {
-			0 =>  palette & 0b00000011,
-			1 => (palette & 0b00001100) >> 2,
-			2 => (palette & 0b00110000) >> 4,
-			3 => (palette & 0b11000000) >> 6,
-			_ => panic!("Invalid Palette Shade!")
-		};
-		color_values[real_shade as usize]
+		color_values[shade as usize]
 	}
 
+	// Using color gameboy palette data
+	// Converts a 0-3 shade to the appropriate 32bit palette color for sprites
+	fn sprite_colorize(&self, shade: u8, palette_id: u8, palette: u8) -> u32 {
+		let color_values = [
+			self.get_sprite_pal_color(palette_id, 0), // 0
+			self.get_sprite_pal_color(palette_id, 1), // 1
+			self.get_sprite_pal_color(palette_id, 2), // 2
+			self.get_sprite_pal_color(palette_id, 3), // 3
+		];
+		color_values[shade as usize]
+	}
 
 	pub fn dump(&self) {
 		println!("DUMPING VRAM");

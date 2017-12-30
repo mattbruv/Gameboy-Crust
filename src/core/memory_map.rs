@@ -51,6 +51,9 @@ pub const KEY1: u16    = 0xFF4D; // CPU operating speed
 pub const BGPI: u16    = 0xFF68; // Background Palette Index
 pub const BGPD: u16    = 0xFF69; // Background Palette Data
 
+pub const OBPI: u16    = 0xFF6A; // Background Palette Index
+pub const OBPD: u16    = 0xFF6B; // Background Palette Data
+
 // 16 KB ROM Bank 00 (in cartridge, fixed at bank 00)
 pub const ROM_START: u16 = 0x0000;
 pub const ROM_END: u16   = 0x3FFF;

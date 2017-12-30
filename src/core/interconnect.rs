@@ -44,7 +44,7 @@ impl Interconnect {
 		// No specific register, read general data
 		match address {
 			0xFF51 ... 0xFF55 => {
-				println!("READ CGB DMA");
+				//println!("READ CGB DMA");
 				0
 			},
 			ROM_START  ... ROM_BANK_END  => self.rom.read(address),
@@ -68,7 +68,7 @@ impl Interconnect {
 		}
 		match address {
 			0xFF51 ... 0xFF55 => {
-				println!("CGB DMA");
+				//println!("CGB DMA");
 			},
 			ROM_START  ... ROM_BANK_END  => self.rom.write(address, data),
 			VRAM_START ... VRAM_END => {
@@ -132,6 +132,9 @@ impl Interconnect {
             BGPI => Some(self.gpu.get_bg_pal_index()),
             BGPD => Some(self.gpu.get_bg_pal_data()),
 
+            OBPI => Some(self.gpu.get_sprite_pal_index()), 
+            OBPD => Some(self.gpu.get_sprite_pal_data()),
+
 			_ => None
 		}
 	}
@@ -155,6 +158,9 @@ impl Interconnect {
 
             BGPI => self.gpu.set_bg_pal_index(data),
             BGPD => self.gpu.set_bg_pal_data(data),
+
+            OBPI => self.gpu.set_sprite_pal_index(data),
+            OBPD => self.gpu.set_sprite_pal_data(data),
 
 			_ => found = false,
 		}
